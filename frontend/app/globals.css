@@ -1,0 +1,644 @@
+@import url("https://fonts.googleapis.com/css2?family=Keania+One&display=swap");
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+
+/* ================================================== */
+/* ROOT VARIABLES                                     */
+/* ================================================== */
+
+:root {
+  --background: #ffffff;
+  --foreground: #09090b;
+
+  /* UI font */
+  --font-ui: Arial, Helvetica, sans-serif;
+
+  /* Display / heading font */
+  --font-display: "Keania One", sans-serif;
+
+  /* Dashboard grid */
+  --grid-color: rgba(15, 23, 42, 0.28);
+}
+
+.dark {
+  --background: #051F20;
+  --foreground: #f4f4f5;
+  --grid-color: rgba(142, 182, 155, 0.08);
+  color-scheme: dark;
+}
+
+
+/* ================================================== */
+/* TAILWIND THEME                                     */
+/* ================================================== */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --font-sans: var(--font-ui);
+  --font-display: "Keania One", sans-serif;
+
+  /* Forest Green Palette Tokens */
+  --color-forest-950: #051F20;
+  --color-forest-900: #0B2B26;
+  --color-forest-800: #163832;
+  --color-forest-700: #235347;
+  --color-forest-400: #8EB69B;
+  --color-forest-100: #DAF1DE;
+}
+
+
+/* ================================================== */
+/* RESET                                              */
+/* ================================================== */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--background);
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: var(--background);
+  color: var(--foreground);
+
+  /* Normal font everywhere by default */
+  font-family: var(--font-ui);
+
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ================================================== */
+/* MOBILE TOUCH & SCROLLING UTILITIES                */
+/* ================================================== */
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.touch-pan-y {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.safe-pb {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+}
+
+.safe-pt {
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0.75rem));
+}
+
+
+
+/* ================================================== */
+/* KEANIA ONE                                         */
+/* ================================================== */
+
+/*
+  Use className="font-display" ONLY for:
+
+  - Main headings
+  - Section headings
+  - SocialInt branding
+  - Hero headings
+  - Topic names
+
+  Do NOT use it for:
+  - Numbers
+  - Percentages
+  - Statistics
+  - Dates
+  - Times
+  - Chart values
+*/
+
+.font-display {
+  font-family: "Keania One", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+}
+
+
+/* ================================================== */
+/* DASHBOARD GRID                                     */
+/* ================================================== */
+
+.dashboard-grid {
+  position: relative;
+  isolation: isolate;
+
+  min-height: 100vh;
+
+  background-color: #051F20;
+
+  /* Light horizontal + vertical grid */
+
+  background-image:
+    linear-gradient(
+      to right,
+      var(--grid-color) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      var(--grid-color) 1px,
+      transparent 1px
+    );
+
+  background-size: 40px 40px;
+
+  overflow: hidden;
+}
+
+
+/* ================================================== */
+/* FLOATING PINE WAVE                                 */
+/* ================================================== */
+
+.dashboard-grid::before {
+  content: "";
+
+  position: absolute;
+
+  width: 750px;
+  height: 260px;
+
+  top: 8%;
+  left: 45%;
+
+  transform: translateX(-50%);
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      ellipse,
+      rgba(35, 83, 71, 0.22),
+      rgba(35, 83, 71, 0.04) 35%,
+      transparent 70%
+    );
+
+  filter: blur(28px);
+
+  opacity: 0.75;
+
+  pointer-events: none;
+
+  z-index: -1;
+
+  animation: dashboardWave 9s ease-in-out infinite;
+}
+
+
+/* ================================================== */
+/* FLOATING SAGE WAVE                                 */
+/* ================================================== */
+
+.dashboard-grid::after {
+  content: "";
+
+  position: absolute;
+
+  width: 600px;
+  height: 220px;
+
+  top: 35%;
+  right: -180px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      ellipse,
+      rgba(142, 182, 155, 0.12),
+      transparent 68%
+    );
+
+  filter: blur(35px);
+
+  pointer-events: none;
+
+  z-index: -1;
+
+  animation: dashboardWaveTwo 12s ease-in-out infinite;
+}
+
+
+/* ================================================== */
+/* BLUE WAVE ANIMATION                                */
+/* ================================================== */
+
+@keyframes dashboardWave {
+  0%,
+  100% {
+    transform:
+      translateX(-50%)
+      translateY(0)
+      scaleX(1);
+  }
+
+  50% {
+    transform:
+      translateX(-46%)
+      translateY(35px)
+      scaleX(1.15);
+  }
+}
+
+
+/* ================================================== */
+/* PURPLE WAVE ANIMATION                              */
+/* ================================================== */
+
+@keyframes dashboardWaveTwo {
+  0%,
+  100% {
+    transform:
+      translate(0, 0)
+      scale(1);
+  }
+
+  50% {
+    transform:
+      translate(-80px, 45px)
+      scale(1.12);
+  }
+}
+
+
+/* ================================================== */
+/* SELECTION                                          */
+/* ================================================== */
+
+::selection {
+  background: rgba(142, 182, 155, 0.35);
+  color: #051F20;
+}
+
+.dark ::selection {
+  background: rgba(35, 83, 71, 0.55);
+  color: #DAF1DE;
+}
+
+
+/* ================================================== */
+/* SCROLLBAR                                          */
+/* ================================================== */
+
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+
+::-webkit-scrollbar-thumb {
+  background: #163832;
+  border-radius: 999px;
+}
+
+
+::-webkit-scrollbar-thumb:hover {
+  background: #235347;
+}
+
+
+/* ================================================== */
+/* REDUCE MOTION                                      */
+/* ================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+
+  html {
+    scroll-behavior: auto;
+  }
+
+  .dashboard-grid::before,
+  .dashboard-grid::after {
+    animation: none;
+  }
+
+}
+
+
+/* ================================================== */
+/* ACETERNITY 3D & ANIMATION UTILITIES               */
+/* ================================================== */
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.perspective-2000 {
+  perspective: 2000px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+@keyframes meteor {
+  0% {
+    transform: rotate(215deg) translateX(0);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(215deg) translateX(-600px);
+    opacity: 0;
+  }
+}
+
+.animate-meteor {
+  animation: meteor 5s linear infinite;
+}
+
+@keyframes marquee-scroll-left {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-50%));
+  }
+}
+
+.animate-marquee-left {
+  animation: marquee-scroll-left 32s linear infinite;
+}
+
+.animate-marquee-left:hover {
+  animation-play-state: paused;
+}
+
+@keyframes spotlight {
+  0% {
+    opacity: 0;
+    transform: translate(-72%, -62%) scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -40%) scale(1);
+  }
+}
+
+.animate-spotlight {
+  animation: spotlight 2s ease .75s 1 forwards;
+}
+
+@keyframes border-beam {
+  0% {
+    offset-distance: 0%;
+  }
+  100% {
+    offset-distance: 100%;
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 6s ease-in-out infinite;
+}
+
+/* Light Mode Grid & Dot Backgrounds (Disabled) */
+.bg-grid-slate-light,
+.bg-grid-slate-strong,
+.bg-dot-slate-light,
+.bg-grid-dashboard,
+.dark .bg-grid-dashboard,
+.dark .bg-grid-slate-light,
+.bg-grid-pattern {
+  background-image: none !important;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Print styles for generated intelligence reports */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  
+  aside, nav, header, .no-print {
+    display: none !important;
+  }
+
+  #report-printable-area {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}
+
+/* ================================================== */
+/* HANGING / SUSPENDED CARD HOVER EFFECT             */
+/* ================================================== */
+
+@keyframes hangingSwingRight {
+  0% {
+    transform: translateY(0) rotate(0deg) rotateX(0deg);
+  }
+  20% {
+    transform: translateY(-7px) rotate(2.2deg) rotateX(2.5deg);
+  }
+  42% {
+    transform: translateY(-8px) rotate(-1.6deg) rotateX(1.8deg);
+  }
+  64% {
+    transform: translateY(-7px) rotate(0.9deg) rotateX(1.2deg);
+  }
+  82% {
+    transform: translateY(-7px) rotate(-0.3deg) rotateX(0.6deg);
+  }
+  100% {
+    transform: translateY(-7px) rotate(0deg) rotateX(0deg);
+  }
+}
+
+@keyframes hangingSwingLeft {
+  0% {
+    transform: translateY(0) rotate(0deg) rotateX(0deg);
+  }
+  20% {
+    transform: translateY(-7px) rotate(-2.2deg) rotateX(2.5deg);
+  }
+  42% {
+    transform: translateY(-8px) rotate(1.6deg) rotateX(1.8deg);
+  }
+  64% {
+    transform: translateY(-7px) rotate(-0.9deg) rotateX(1.2deg);
+  }
+  82% {
+    transform: translateY(-7px) rotate(0.3deg) rotateX(0.6deg);
+  }
+  100% {
+    transform: translateY(-7px) rotate(0deg) rotateX(0deg);
+  }
+}
+
+.card-hanging,
+.hanging-card {
+  position: relative;
+  transform-origin: 50% 0%;
+  transform-style: preserve-3d;
+  transition: transform 0.45s cubic-bezier(0.25, 1, 0.5, 1),
+              box-shadow 0.45s cubic-bezier(0.25, 1, 0.5, 1),
+              border-color 0.3s ease;
+  will-change: transform, box-shadow;
+}
+
+/* Subtle hanging suspension notch at top center */
+.card-hanging::before,
+.hanging-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 26px;
+  height: 2.5px;
+  border-radius: 0 0 3px 3px;
+  background: rgba(35, 83, 71, 0.45);
+  opacity: 0.65;
+  transition: opacity 0.3s ease, width 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.card-hanging:hover::before,
+.hanging-card:hover::before {
+  width: 38px;
+  background: #235347;
+  opacity: 1;
+  box-shadow: 0 0 10px rgba(142, 182, 155, 0.7);
+}
+
+.card-hanging:hover,
+.hanging-card:hover {
+  animation: hangingSwingRight 1.15s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  box-shadow:
+    0 22px 34px -10px rgba(5, 31, 32, 0.12),
+    0 10px 18px -6px rgba(5, 31, 32, 0.08),
+    0 0 0 1px rgba(35, 83, 71, 0.25);
+  border-color: rgba(35, 83, 71, 0.45) !important;
+}
+
+.dark .card-hanging:hover,
+.dark .hanging-card:hover {
+  box-shadow:
+    0 26px 44px -10px rgba(0, 0, 0, 0.85),
+    0 12px 22px -6px rgba(0, 0, 0, 0.6),
+    0 0 25px -2px rgba(35, 83, 71, 0.4),
+    0 0 0 1px rgba(142, 182, 155, 0.35);
+  border-color: rgba(142, 182, 155, 0.5) !important;
+}
+
+/* Alternating swing for left-hinge variety on even elements */
+.card-hanging:nth-child(even):hover,
+.hanging-card:nth-child(even):hover,
+.card-hanging-alt:hover,
+.hanging-card-alt:hover {
+  animation: hangingSwingLeft 1.15s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-hanging,
+  .hanging-card,
+  .card-hanging:hover,
+  .hanging-card:hover,
+  .card-hanging-alt:hover,
+  .hanging-card-alt:hover {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+/* ================================================== */
+/* SOCL ASTRONAUT FLOATING ANIMATION                  */
+/* ================================================== */
+
+@keyframes float-astronaut {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(2.5deg);
+  }
+}
+
+.animate-float-astronaut {
+  animation: float-astronaut 3.6s ease-in-out infinite;
+}
+
+@keyframes pulse-glow-socl {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.45);
+  }
+}
+
+.animate-glow-socl {
+  animation: pulse-glow-socl 2.8s ease-in-out infinite;
+}
+
+

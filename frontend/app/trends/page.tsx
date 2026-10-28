@@ -1,0 +1,662 @@
+"use client";
+
+import { useEffect, useMemo, useState, Suspense } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  Activity,
+  ArrowUpRight,
+  ChevronDown,
+  FileText,
+  Flame,
+  Hash,
+  Loader2,
+  MessageSquare,
+  Plus,
+  Search,
+  TrendingUp,
+  Users,
+  X,
+  Zap,
+} from "lucide-react";
+
+import Sidebar from "../components/Sidebar";
+import DashboardHeader from "../components/DashboardHeader";
+import GridSparkles from "../components/ui/GridSparkles";
+import PlatformPngIcon from "../components/PlatformPngIcon";
+import {
+  useAnalyzedPosts,
+  computeTrendingTopics,
+  getActiveTrends,
+  parseCompactNumber,
+  formatCompactNumber,
+  type TrendingTopicItem as Trend,
+} from "@/src/lib/analyzedPostsStore";
+
+const defaultCategories = [
+  "All",
+  "Social",
+  "Sports",
+  "Events",
+  "Entertainment",
+];
+
+function TrendsPageContent() {
+  const searchParams = useSearchParams();
+  const searchParamQuery = searchParams.get("search") || searchParams.get("q");
+
+  const { posts } = useAnalyzedPosts();
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("All");
+  const [sort, setSort] = useState("momentum");
+  const [selectedTrend, setSelectedTrend] = useState<Trend | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (searchParamQuery) {
+      setSearch(searchParamQuery);
+    }
+  }, [searchParamQuery]);
+
+  const realTrends = useMemo(() => {
+    return computeTrendingTopics(posts);
+  }, [posts]);
+
+  const activeTrends = useMemo(() => {
+    return getActiveTrends(posts);
+  }, [posts]);
+
+  const categories = useMemo(() => {
+    const extraCategories = new Set<string>();
+    for (const t of activeTrends) {
+      if (
+        t.category &&
+        !defaultCategories.some(
+          (c) => c.toLowerCase() === t.category.toLowerCase()
+        )
+      ) {
+        extraCategories.add(t.category);
+      }
+    }
+    return [...defaultCategories, ...Array.from(extraCategories)];
+  }, [activeTrends]);
+
+  const filteredTrends = useMemo(() => {
+    let result = activeTrends;
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (t) =>
+          t.name.toLowerCase().includes(q) ||
+          t.category.toLowerCase().includes(q) ||
+          t.description.toLowerCase().includes(q)
+      );
+    }
+
+    if (category !== "All") {
+      result = result.filter(
+        (t) => t.category.toLowerCase() === category.toLowerCase()
+      );
+    }
+
+    return [...result].sort((a, b) => {
+      if (sort === "growth") {
+        const growthA = parseInt(a.growth.replace(/[^\d-]/g, "") || "0");
+        const growthB = parseInt(b.growth.replace(/[^\d-]/g, "") || "0");
+        return growthB - growthA;
+      }
+      if (sort === "mentions") {
+        return parseCompactNumber(b.mentions) - parseCompactNumber(a.mentions);
+      }
+      return b.momentum - a.momentum;
+    });
+  }, [activeTrends, search, category, sort]);
+
+  return (
+    <div className="relative min-h-screen bg-[#fafafa] dark:bg-[#051F20] text-zinc-900 dark:text-zinc-100 selection:bg-[#8EB69B]/35 selection:text-[#051F20] dark:selection:bg-[#235347]/40 dark:selection:text-[#DAF1DE] transition-colors duration-150">
+      <GridSparkles />
+      <Sidebar
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+      />
+
+      <main className="relative z-10 lg:ml-[270px]">
+        <DashboardHeader onMenuClick={() => setMobileMenuOpen(true)} />
+
+        <div className="px-3 py-4 sm:px-6 sm:py-8 lg:px-8 max-w-6xl mx-auto overflow-x-hidden">
+          <div className="space-y-6 sm:space-y-8">
+            {/* ================================================== */}
+            {/* HEADER                                             */}
+            {/* ================================================== */}
+            <div className="flex flex-col items-center text-center sm:items-start sm:text-left sm:flex-row sm:justify-between sm:items-end gap-4 sm:gap-6">
+              <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
+                <h1 className="font-display text-2xl xs:text-3xl sm:text-4xl lg:text-5xl tracking-tight text-zinc-950 dark:text-white text-center sm:text-left">
+                  Trends & Topics
+                </h1>
+                <p className="mt-1.5 sm:mt-2 max-w-2xl text-xs sm:text-sm lg:text-base leading-relaxed text-zinc-600 dark:text-zinc-400 text-center sm:text-left mx-auto sm:mx-0">
+                  Discover fast-growing conversations, identify emerging narratives, and monitor audience momentum in real time.
+                </p>
+              </div>
+
+              {/* Status and Source Action Button */}
+              <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto">
+                <div className="inline-flex items-center gap-2 rounded-lg border border-zinc-200/90 dark:border-[#163832] bg-white/90 dark:bg-[#0B2B26]/90 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-zinc-800 dark:text-zinc-200 shadow-2xs backdrop-blur-xs">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.55)] shrink-0" />
+                  <span className="font-mono text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">Live tracking</span>
+                </div>
+
+                <Link
+                  href="/reports?type=Trend Analysis"
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-full border border-[#235347]/30 bg-[#235347]/10 hover:bg-[#235347]/20 px-3.5 py-1.5 text-xs font-semibold text-[#235347] dark:text-[#8EB69B] transition shrink-0"
+                >
+                  <FileText size={14} />
+                  <span>Reports</span>
+                </Link>
+
+                <Link
+                  href="/data-sources"
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-full bg-[#235347] px-4 py-1.5 text-xs font-semibold text-[#DAF1DE] shadow-xs hover:bg-[#163832] active:scale-98 transition shrink-0"
+                >
+                  <Plus size={14} strokeWidth={2.5} />
+                  <span>Add source</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* ================================================== */}
+            {/* OVERVIEW STATS                                    */}
+            {/* ================================================== */}
+            <section className="grid gap-2.5 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+              <TrendStat
+                icon={Flame}
+                title="Active trends"
+                value={`${activeTrends.length}`}
+                change={`+${Math.min(96, activeTrends.length * 8)}%`}
+              />
+              <TrendStat
+                icon={TrendingUp}
+                title="Rising topics"
+                value={`${activeTrends.filter((t) => t.sentiment === "positive").length}`}
+                change="+18.2%"
+              />
+              <TrendStat
+                icon={MessageSquare}
+                title="Trend mentions"
+                value={formatCompactNumber(
+                  activeTrends.reduce(
+                    (sum, t) => sum + parseCompactNumber(t.mentions),
+                    0
+                  )
+                )}
+                change={realTrends.length > 0 ? "From analyzed & live feeds" : "Live monitored"}
+              />
+              <TrendStat
+                icon={Users}
+                title="Estimated reach"
+                value={formatCompactNumber(
+                  activeTrends.reduce(
+                    (sum, t) => sum + parseCompactNumber(t.reach),
+                    0
+                  )
+                )}
+                change="Audience footprint"
+              />
+            </section>
+
+            {/* ================================================== */}
+            {/* SEARCH & FILTERS                                  */}
+            {/* ================================================== */}
+            <section className="rounded-2xl border border-zinc-200/80 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 p-3.5 sm:p-4 shadow-xs">
+              <div className="flex flex-col gap-3 sm:gap-4">
+                <div className="relative">
+                  <Search
+                    size={17}
+                    className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-zinc-400"
+                  />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search topics, hashtags, or keywords..."
+                    className="h-10 sm:h-11 w-full rounded-xl border border-zinc-200 dark:border-[#163832] bg-zinc-50/50 dark:bg-[#0B2B26]/60 pl-10 sm:pl-11 pr-10 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 outline-none transition placeholder:text-zinc-400 focus:border-[#235347] dark:focus:border-[#8EB69B] focus:bg-white dark:focus:bg-[#0B2B26] shadow-xs"
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => setSearch("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition cursor-pointer"
+                      title="Clear search"
+                    >
+                      <X size={15} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                  <div className="flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-none w-full sm:w-auto">
+                    {categories.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setCategory(item)}
+                        className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold transition shrink-0 ${
+                          category.toLowerCase() === item.toLowerCase()
+                            ? "bg-[#235347] dark:bg-[#8EB69B] text-white dark:text-[#051F20] shadow-xs"
+                            : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-[#163832]/50 hover:text-zinc-900 dark:hover:text-zinc-100"
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative shrink-0 w-full sm:w-auto">
+                    <select
+                      value={sort}
+                      onChange={(event) => setSort(event.target.value)}
+                      className="h-10 w-full sm:w-auto appearance-none rounded-xl border border-zinc-200 dark:border-[#163832] bg-white dark:bg-[#0B2B26] px-4 pr-9 text-xs font-medium text-zinc-800 dark:text-zinc-200 shadow-xs outline-none focus:border-[#235347] dark:focus:border-[#8EB69B]"
+                    >
+                      <option value="momentum">Highest momentum</option>
+                      <option value="growth">Fastest growth</option>
+                      <option value="mentions">Most mentions</option>
+                    </select>
+                    <ChevronDown
+                      size={14}
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* ================================================== */}
+            {/* MAIN GRID                                          */}
+            {/* ================================================== */}
+            <div className="grid gap-6 xl:grid-cols-[1.65fr_0.85fr]">
+              {/* Trend List */}
+              <section className="rounded-3xl border border-zinc-200/80 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 shadow-xs">
+                <div className="flex items-center justify-between border-b border-zinc-100 dark:border-[#163832] px-5 py-4 sm:px-6">
+                  <div>
+                    <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                      Trending now
+                    </h2>
+                    <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                      {filteredTrends.length} topics currently monitored
+                    </p>
+                  </div>
+
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#235347]/20 dark:border-[#8EB69B]/30 bg-[#DAF1DE] dark:bg-[#235347]/40 text-[#235347] dark:text-[#8EB69B]">
+                    <Hash size={16} />
+                  </div>
+                </div>
+
+                <div className="divide-y divide-zinc-100 dark:divide-[#163832]">
+                  {filteredTrends.length === 0 ? (
+                    <div className="px-6 py-16 text-center flex flex-col items-center">
+                      <div className="h-12 w-12 rounded-2xl bg-[#235347]/15 dark:bg-[#8EB69B]/20 text-[#235347] dark:text-[#8EB69B] flex items-center justify-center mb-3">
+                        <Hash size={24} />
+                      </div>
+                      <p className="text-base font-bold text-zinc-950 dark:text-white">
+                        No matching topics found
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 max-w-sm">
+                        Try modifying your keyword search or switching to another category filter.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearch("");
+                          setCategory("All");
+                        }}
+                        className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#235347] px-4 py-2 text-xs font-semibold text-[#DAF1DE] shadow-xs hover:bg-[#163832] transition"
+                      >
+                        <TrendingUp size={14} />
+                        <span>Show all active trends</span>
+                      </button>
+                    </div>
+                  ) : (
+                    filteredTrends.map((trend, index) => (
+                      <TrendRow
+                        key={trend.id}
+                        trend={trend}
+                        rank={index + 1}
+                        onClick={() => setSelectedTrend(trend)}
+                      />
+                    ))
+                  )}
+                </div>
+              </section>
+
+              {/* Right Side Cards */}
+              <div className="space-y-6">
+                {/* Highlight card */}
+                <section className="card-hanging rounded-3xl border border-[#235347]/30 dark:border-[#163832] bg-[#DAF1DE]/20 dark:bg-[#0B2B26]/80 p-5 sm:p-6 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                      <Flame size={19} />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-[#235347] dark:text-[#8EB69B]">
+                        Fastest rising narrative
+                      </p>
+                      <h3 className="mt-0.5 text-lg font-bold text-zinc-950 dark:text-white">
+                        {activeTrends[0]?.name || "No narrative yet"}
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <div className="flex items-end justify-between">
+                      <div>
+                        <p className="text-4xl font-black text-zinc-950 dark:text-white">
+                          {activeTrends[0]?.momentum || 0}
+                        </p>
+                        <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                          momentum score
+                        </p>
+                      </div>
+
+                      <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-mono font-semibold text-emerald-800 dark:text-emerald-300">
+                        <ArrowUpRight size={13} />
+                        {activeTrends[0]?.growth || "+0%"}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                      <div
+                        className="h-full rounded-full bg-[#235347] dark:bg-[#8EB69B] transition-all duration-500"
+                        style={{ width: `${activeTrends[0]?.momentum || 0}%` }}
+                      />
+                    </div>
+
+                    <p className="mt-4 text-xs sm:text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+                      {activeTrends[0]?.description ||
+                        "Analyze social media posts in Post Analysis to discover and rank emerging narratives in real time."}
+                    </p>
+                  </div>
+                </section>
+
+                {/* Narrative spotlight */}
+                <section className="card-hanging rounded-3xl border border-zinc-200/80 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 p-5 sm:p-6 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#235347]/20 dark:border-[#8EB69B]/30 bg-[#DAF1DE] dark:bg-[#235347]/40 text-[#235347] dark:text-[#8EB69B]">
+                      <Zap size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                        Emerging narrative
+                      </h3>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        Signal detection
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="mt-4 text-xs sm:text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+                    {activeTrends.length > 1
+                      ? `Active momentum detected around ${activeTrends[1].name} in ${activeTrends[1].category} with ${activeTrends[1].mentions} mentions across connected feeds.`
+                      : "Strong engagement velocity across posts will highlight emerging signals here."}
+                  </p>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* ================================================== */}
+      {/* DETAIL MODAL                                       */}
+      {/* ================================================== */}
+      {selectedTrend && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-3 sm:px-5 backdrop-blur-xs"
+          onClick={() => setSelectedTrend(null)}
+        >
+          <div
+            className="w-full max-w-xl max-h-[90dvh] overflow-y-auto rounded-2xl sm:rounded-3xl border border-zinc-200 dark:border-[#163832] bg-white dark:bg-[#0B2B26] p-4 sm:p-7 shadow-2xl text-zinc-900 dark:text-zinc-100"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#235347] dark:text-[#8EB69B]">
+                  Topic Analysis
+                </span>
+                <h3 className="mt-1 font-display text-2xl sm:text-3xl tracking-tight text-zinc-950 dark:text-white font-bold">
+                  {selectedTrend.name}
+                </h3>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  Category: {selectedTrend.category}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedTrend(null)}
+                className="rounded-xl border border-zinc-200 dark:border-[#163832] px-3 py-1.5 text-xs font-semibold text-zinc-600 dark:text-zinc-400 transition hover:bg-zinc-100 dark:hover:bg-[#163832]/50 hover:text-zinc-900 dark:hover:text-zinc-100"
+              >
+                Close
+              </button>
+            </div>
+
+            <p className="mt-5 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+              {selectedTrend.description}
+            </p>
+
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Detail label="Mentions" value={selectedTrend.mentions} />
+              <Detail label="Growth" value={selectedTrend.growth} />
+              <Detail label="Posts" value={selectedTrend.posts} />
+              <Detail label="Reach" value={selectedTrend.reach} />
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-zinc-200 dark:border-[#163832] bg-zinc-50 dark:bg-[#163832]/30 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+                  Momentum score
+                </span>
+                <span className="text-sm font-bold text-zinc-950 dark:text-white">
+                  {selectedTrend.momentum}/100
+                </span>
+              </div>
+
+              <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                <div
+                  className="h-full rounded-full bg-[#235347] dark:bg-[#8EB69B]"
+                  style={{ width: `${selectedTrend.momentum}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                Active platforms
+              </p>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                {selectedTrend.platforms.map((item) => (
+                  <span
+                    key={item}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 px-3 py-1 text-xs font-semibold text-zinc-700 dark:text-zinc-300"
+                  >
+                    <PlatformPngIcon platform={item} size={14} />
+                    <span>{item}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ================================================== */
+/* TREND STAT CARD                                    */
+/* ================================================== */
+
+function TrendStat({
+  icon: Icon,
+  title,
+  value,
+  change,
+}: {
+  icon: typeof Flame;
+  title: string;
+  value: string;
+  change: string;
+}) {
+  return (
+    <div className="card-hanging min-w-0 rounded-2xl border border-zinc-200/80 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 p-3.5 sm:p-5 shadow-xs">
+      <div className="flex items-start justify-between gap-1.5">
+        <div className="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl border border-[#235347]/20 dark:border-[#8EB69B]/30 bg-[#DAF1DE] dark:bg-[#235347]/40 text-[#235347] dark:text-[#8EB69B]">
+          <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+        </div>
+
+        <span className="inline-flex shrink-0 items-center gap-0.5 sm:gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] font-mono font-semibold text-emerald-800 dark:text-emerald-300">
+          <ArrowUpRight size={12} className="shrink-0" />
+          <span className="truncate">{change}</span>
+        </span>
+      </div>
+
+      <p className="mt-3 sm:mt-4 text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 truncate">
+        {title}
+      </p>
+
+      <p className="mt-0.5 sm:mt-1 text-xl sm:text-3xl font-extrabold tracking-tight text-zinc-950 dark:text-white truncate">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+/* ================================================== */
+/* TREND ROW                                          */
+/* ================================================== */
+
+function TrendRow({
+  trend,
+  rank,
+  onClick,
+}: {
+  trend: Trend;
+  rank: number;
+  onClick: () => void;
+}) {
+  const sentimentBadges = {
+    positive: "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/25",
+    negative: "bg-rose-500/10 text-rose-800 dark:text-rose-300 border-rose-500/25",
+    neutral: "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700",
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex w-full items-center gap-3 sm:gap-4 px-3.5 py-3 sm:px-6 sm:py-4 text-left transition hover:bg-zinc-50 dark:hover:bg-[#163832]/25"
+    >
+      <span className="w-5 sm:w-6 shrink-0 text-xs sm:text-sm font-bold text-zinc-400 dark:text-zinc-500">
+        {String(rank).padStart(2, "0")}
+      </span>
+
+      <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-100 dark:bg-[#163832] text-zinc-600 dark:text-[#DAF1DE] sm:flex">
+        <Hash size={16} />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-[#235347] dark:group-hover:text-[#8EB69B] transition truncate max-w-[140px] xs:max-w-[200px] sm:max-w-none">
+            {trend.name}
+          </p>
+          <span className="rounded-md border border-zinc-200 dark:border-[#163832] bg-zinc-100 dark:bg-[#163832]/60 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-semibold text-zinc-600 dark:text-zinc-400">
+            {trend.category}
+          </span>
+          {trend.isAnalyzed && (
+            <span className="rounded-md border border-[#235347]/30 dark:border-[#8EB69B]/30 bg-[#DAF1DE] dark:bg-[#235347]/40 px-1.5 py-0.5 text-[9px] font-semibold text-[#235347] dark:text-[#8EB69B]">
+              Analyzed
+            </span>
+          )}
+          {/* Mobile growth pill */}
+          <span className="inline-flex sm:hidden items-center text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+            {trend.growth}
+          </span>
+        </div>
+
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400">
+          <span>{trend.mentions} mentions</span>
+          <span>•</span>
+          <span className="hidden xs:inline">{trend.posts} posts •</span>
+          <span>{trend.reach} reach</span>
+        </div>
+      </div>
+
+      <span
+        className={`hidden rounded-md border px-2 py-0.5 text-[11px] font-mono font-medium capitalize md:inline-flex items-center gap-1.5 ${
+          sentimentBadges[trend.sentiment] || sentimentBadges.neutral
+        }`}
+      >
+        <span
+          className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+            trend.sentiment === "positive"
+              ? "bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.55)]"
+              : trend.sentiment === "negative"
+              ? "bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.55)]"
+              : "bg-zinc-400"
+          }`}
+        />
+        {trend.sentiment}
+      </span>
+
+      <div className="hidden text-right sm:block">
+        <div className="flex items-center justify-end gap-1 text-sm font-bold text-emerald-600 dark:text-emerald-400">
+          <ArrowUpRight size={14} />
+          {trend.growth}
+        </div>
+        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 uppercase font-semibold">
+          growth
+        </p>
+      </div>
+
+      <ArrowUpRight
+        size={16}
+        className="shrink-0 text-zinc-400 transition group-hover:text-zinc-700 dark:group-hover:text-zinc-200"
+      />
+    </button>
+  );
+}
+
+/* ================================================== */
+/* DETAIL STAT BOX                                    */
+/* ================================================== */
+
+function Detail({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/60 p-3">
+      <p className="text-[11px] font-semibold uppercase text-zinc-500 dark:text-zinc-400">
+        {label}
+      </p>
+      <p className="mt-0.5 text-sm font-bold text-zinc-950 dark:text-zinc-100">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+export default function TrendsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#fafafa] dark:bg-[#051F20] flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-[#235347] dark:text-[#8EB69B]" />
+        </div>
+      }
+    >
+      <TrendsPageContent />
+    </Suspense>
+  );
+}

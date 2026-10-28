@@ -1,0 +1,176 @@
+"use client";
+
+import { Hash, BarChart2 } from "lucide-react";
+import Link from "next/link";
+import PlatformPngIcon from "./PlatformPngIcon";
+import {
+  computeTrendingTopics,
+  type AnalysisRecord,
+} from "@/src/lib/analyzedPostsStore";
+
+interface TrendingTopicsProps {
+  posts?: AnalysisRecord[];
+}
+
+export default function TrendingTopics({ posts }: TrendingTopicsProps) {
+  const topics = computeTrendingTopics(posts || []);
+
+  return (
+    <section
+      className="
+        card-hanging
+        rounded-2xl
+        border
+        border-zinc-200/80
+        dark:border-[#163832]
+        bg-white
+        dark:bg-[#0B2B26]/80
+        p-4
+        sm:p-6
+        shadow-xs
+        flex
+        flex-col
+        justify-between
+      "
+    >
+      <div>
+        {/* ================================================== */}
+        {/* HEADER                                             */}
+        {/* ================================================== */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-display text-base tracking-tight text-zinc-950 dark:text-white">
+              Trending Topics
+            </h3>
+            <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+              Fastest growing conversations extracted from analyzed posts
+            </p>
+          </div>
+
+          {/* Icon with user green palette */}
+          <div
+            className="
+              flex
+              h-9
+              w-9
+              items-center
+              justify-center
+              rounded-xl
+              border
+              border-[#235347]/20
+              dark:border-[#8EB69B]/30
+              bg-[#DAF1DE]
+              dark:bg-[#235347]/40
+              text-[#235347]
+              dark:text-[#8EB69B]
+            "
+          >
+            <Hash size={18} strokeWidth={2} />
+          </div>
+        </div>
+
+        {/* ================================================== */}
+        {/* TOPICS LIST / EMPTY STATE                          */}
+        {/* ================================================== */}
+        {topics.length === 0 ? (
+          <div className="py-10 text-center flex flex-col items-center">
+            <div className="h-10 w-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 mb-2.5">
+              <Hash size={18} />
+            </div>
+            <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+              No topics discovered yet
+            </p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 max-w-xs">
+              Once you analyze posts, recurring hashtags, topics, and growth rates will emerge automatically.
+            </p>
+            <Link
+              href="/posts-analysis"
+              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#235347] px-3.5 py-1.5 text-xs font-semibold text-[#DAF1DE] hover:bg-[#163832] transition"
+            >
+              <BarChart2 size={13} />
+              <span>Analyze a post</span>
+            </Link>
+          </div>
+        ) : (
+          <div className="mt-5 divide-y divide-zinc-100 dark:divide-zinc-800">
+            {topics.slice(0, 5).map((topic, index) => (
+              <div
+                key={topic.name}
+                className="
+                  group
+                  flex
+                  items-center
+                  justify-between
+                  gap-4
+                  py-3
+                  px-1
+                  rounded-xl
+                  transition-all
+                  duration-150
+                  hover:bg-zinc-50/80
+                  dark:hover:bg-zinc-800/50
+                "
+              >
+                {/* Topic info */}
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="w-5 shrink-0 text-xs font-mono font-bold text-zinc-400 dark:text-zinc-500">
+                    0{index + 1}
+                  </span>
+
+                  <div className="min-w-0">
+                    <p className="truncate font-display text-sm font-medium text-zinc-900 dark:text-white transition-colors group-hover:text-[#235347] dark:group-hover:text-[#8EB69B]">
+                      {topic.name}
+                    </p>
+                    <div className="mt-1 flex items-center gap-1.5 text-xs font-mono text-zinc-500 dark:text-zinc-400">
+                      <span>{topic.mentions} mentions</span>
+                      <span>•</span>
+                      <div className="flex items-center gap-1">
+                        {topic.platforms.map((plat) => (
+                          <PlatformPngIcon key={plat} platform={plat} size={13} alt={plat} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Growth badge */}
+                <span
+                  className={`
+                    shrink-0
+                    rounded-md
+                    border
+                    px-2
+                    py-0.5
+                    text-[11px]
+                    font-semibold
+                    font-mono
+                    ${
+                      topic.sentiment === "positive"
+                        ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+                        : topic.sentiment === "negative"
+                          ? "border-rose-500/25 bg-rose-500/10 text-rose-800 dark:text-rose-300"
+                          : "border-zinc-300/80 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+                    }
+                  `}
+                >
+                  {topic.growth}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {topics.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-[#163832] flex justify-end">
+          <Link
+            href="/trends"
+            className="text-xs font-semibold text-[#235347] dark:text-[#8EB69B] hover:underline"
+          >
+            Explore all trends &rarr;
+          </Link>
+        </div>
+      )}
+    </section>
+  );
+}

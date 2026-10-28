@@ -1,0 +1,420 @@
+"use client";
+
+import {
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  FileText,
+  Plus,
+  TrendingUp,
+} from "lucide-react";
+
+import { useEffect, useState } from "react";
+import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+
+import Sidebar from "./Sidebar";
+import DashboardHeader from "./DashboardHeader";
+import StatCard from "./StatCard";
+import SentimentChart from "./SentimentChart";
+import EmergingIssue from "./EmergingIssue";
+import TrendingTopics from "./TrendingTopics";
+import RecentActivity from "./RecentActivity";
+import PlatformPngIcon from "./PlatformPngIcon";
+import {
+  getActiveProfile,
+  getDataSources,
+  type MonitoringProfile,
+} from "@/src/lib/monitoringStore";
+import {
+  useAnalyzedPosts,
+  computeDashboardStats,
+} from "@/src/lib/analyzedPostsStore";
+import { useReports } from "@/src/lib/reportsStore";
+import { useSettings } from "@/src/lib/settingsStore";
+import { SquigglyText } from "./ui/squiggly-text";
+import GridSparkles from "./ui/GridSparkles";
+
+export default function Dashboard() {
+  const { user } = useUser();
+  const router = useRouter();
+
+  const { posts } = useAnalyzedPosts();
+  const stats = computeDashboardStats(posts);
+  const { reports } = useReports();
+  const { settings } = useSettings();
+
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const [profile, setProfile] = useState<MonitoringProfile | null>(null);
+  const [dataSources, setDataSources] = useState<any[]>([]);
+
+  useEffect(() => {
+    const active = getActiveProfile();
+    const sources = getDataSources();
+    setProfile(active);
+    setDataSources(sources);
+  }, []);
+
+  /* ================================================== */
+  /* USER                                              */
+  /* ================================================== */
+  const firstName =
+    user?.firstName ||
+    user?.username ||
+    "there";
+
+  /* ================================================== */
+  /* DYNAMIC GREETING                                  */
+  /* ================================================== */
+  const hour = new Date().getHours();
+
+  const greeting =
+    hour >= 5 && hour < 12
+      ? "Good morning"
+      : hour >= 12 && hour < 17
+        ? "Good afternoon"
+        : hour >= 17 && hour < 22
+          ? "Good evening"
+          : "Good night";
+
+  /* ================================================== */
+  /* PROFILE TYPE & INITIALS                            */
+  /* ================================================== */
+  const getInitials = (text?: string) => {
+    if (!text) return "SI";
+    return text
+      .replace(/[^a-zA-Z0-9 ]/g, "")
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0].toUpperCase())
+      .join("");
+  };
+
+  const getProfileTitle = () => {
+    return profile?.name || "Active Target";
+  };
+
+  /* ================================================== */
+  /* DATA SOURCE NAMES                                  */
+  /* ================================================== */
+  const getSourceName = () => {
+    if (dataSources.length > 0) {
+      const names = dataSources.map((s) => s.name.split(" ")[0]).join(", ");
+      return `${names} (${dataSources.length} ${dataSources.length === 1 ? "source" : "sources"})`;
+    }
+    return "No source connected";
+  };
+
+  return (
+    <div className="relative min-h-screen bg-[#fafafa] dark:bg-[#051F20] text-zinc-900 dark:text-zinc-100 selection:bg-[#8EB69B]/35 selection:text-[#051F20] dark:selection:bg-[#235347]/40 dark:selection:text-[#DAF1DE] transition-colors duration-150">
+      <GridSparkles />
+      {/* ================================================== */}
+      {/* SIDEBAR (DESKTOP + MOBILE DRAWER)                  */}
+      {/* ================================================== */}
+      <Sidebar
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+      />
+
+      {/* ================================================== */}
+      {/* MAIN CONTENT                                       */}
+      {/* ================================================== */}
+      <main className="relative z-10 lg:ml-[270px]">
+        {/* Header with hamburger toggle */}
+        <DashboardHeader onMenuClick={() => setMobileMenuOpen(true)} />
+
+        <div className="px-3 py-4 sm:px-6 sm:py-8 lg:px-8 max-w-7xl mx-auto overflow-x-hidden">
+          {/* ================================================== */}
+          {/* PAGE INTRO                                         */}
+          {/* ================================================== */}
+          <section className="mb-6 sm:mb-8 flex flex-col items-center text-center sm:items-start sm:text-left sm:flex-row sm:items-end justify-between gap-4 sm:gap-6">
+            <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
+              <h1 className="font-display text-2xl xs:text-3xl sm:text-4xl lg:text-5xl tracking-tight text-zinc-950 dark:text-white text-center sm:text-left">
+                <SquigglyText scale={[3, 5]} stepDuration={90}>
+                  {greeting},{" "}
+                  <span className="text-[#235347] dark:text-[#8EB69B]">
+                    {firstName}
+                  </span>
+                  .
+                </SquigglyText>
+              </h1>
+
+              <p className="mt-1.5 sm:mt-2.5 max-w-2xl text-xs sm:text-base leading-relaxed text-zinc-600 dark:text-zinc-400 text-center sm:text-left mx-auto sm:mx-0">
+                {settings.workspaceDescription ||
+                  "Monitor audience sentiment, emerging narratives, and influence across your connected social platforms in real time."}
+              </p>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-2.5 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => router.push("/reports")}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl border border-[#235347]/30 bg-[#235347]/10 hover:bg-[#235347]/20 px-3.5 py-2 text-xs sm:text-sm font-semibold text-[#235347] dark:border-[#8EB69B]/30 dark:bg-[#235347]/25 dark:hover:bg-[#235347]/40 dark:text-[#DAF1DE] transition shrink-0"
+              >
+                <FileText size={15} />
+                <span>Reports ({reports.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => router.push("/data-sources")}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-[#235347] px-3.5 py-2 text-xs sm:text-sm font-semibold text-[#DAF1DE] shadow-sm hover:bg-[#163832] active:scale-98 transition shrink-0"
+              >
+                <Plus size={15} strokeWidth={2.5} />
+                <span>Add data source</span>
+              </button>
+            </div>
+          </section>
+
+          {/* ================================================== */}
+          {/* MONITORING PROFILE BANNER                          */}
+          {/* ================================================== */}
+          <section className="card-hanging mb-6 flex flex-col justify-between gap-3 sm:gap-4 rounded-2xl border border-zinc-200/80 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 p-3.5 sm:p-4.5 shadow-xs sm:flex-row sm:items-center">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              {/* Profile avatar with brand color */}
+              <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl border border-[#235347]/30 bg-[#DAF1DE] dark:bg-[#235347]/40 text-xs sm:text-sm font-bold text-[#235347] dark:text-[#8EB69B] shadow-xs">
+                {getInitials(profile?.name)}
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-display text-xs sm:text-sm font-bold tracking-tight text-zinc-950 dark:text-white truncate">
+                    Monitoring: {getProfileTitle()}
+                  </p>
+                  {profile?.category && (
+                    <span className="hidden sm:inline-block rounded-md border border-zinc-200 dark:border-[#163832] bg-zinc-50 dark:bg-[#163832]/60 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
+                      {profile.category}
+                    </span>
+                  )}
+                </div>
+
+                <p className="mt-0.5 text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 font-mono truncate">
+                  {getSourceName()} · {profile?.input || "No profile configured"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-4 flex-wrap pt-2 sm:pt-0 border-t sm:border-t-0 border-zinc-100 dark:border-[#163832] w-full sm:w-auto justify-between sm:justify-start">
+              <button
+                type="button"
+                onClick={() => router.push("/data-sources")}
+                className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white hover:underline transition"
+              >
+                Manage sources
+              </button>
+              <span className="text-zinc-300 dark:text-zinc-700 hidden sm:inline">|</span>
+              <button
+                type="button"
+                onClick={() => router.push("/create-profile")}
+                className="text-xs font-semibold text-[#235347] dark:text-[#8EB69B] hover:underline"
+              >
+                Change profile &rarr;
+              </button>
+            </div>
+          </section>
+
+          {/* ================================================== */}
+          {/* ZERO DATA ONBOARDING BANNER (FIRST TIME USERS)     */}
+          {/* ================================================== */}
+          {posts.length === 0 && (
+            <section className="card-hanging mb-6 rounded-2xl border border-dashed border-[#235347]/40 dark:border-[#8EB69B]/35 bg-[#235347]/5 dark:bg-[#235347]/15 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3 text-left">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#DAF1DE] dark:bg-[#235347]/40 text-[#235347] dark:text-[#8EB69B]">
+                  <BarChart3 size={20} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-zinc-950 dark:text-white">
+                    No social posts analyzed yet
+                  </p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Paste any public post URL in Post Analysis to populate real-time sentiment, emerging topics, audience insights, and network nodes.
+                  </p>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <div className="flex items-center -space-x-1 shrink-0">
+                      <PlatformPngIcon platform="instagram" size={16} className="rounded-full ring-1 ring-white dark:ring-zinc-900" />
+                      <PlatformPngIcon platform="facebook" size={16} className="rounded-full ring-1 ring-white dark:ring-zinc-900" />
+                      <PlatformPngIcon platform="youtube" size={16} className="rounded-full ring-1 ring-white dark:ring-zinc-900" />
+                      <PlatformPngIcon platform="x" size={16} className="rounded-full ring-1 ring-white dark:ring-zinc-900" />
+                      <PlatformPngIcon platform="reddit" size={16} className="rounded-full ring-1 ring-white dark:ring-zinc-900" />
+                      <PlatformPngIcon platform="telegram" size={16} className="rounded-full ring-1 ring-white dark:ring-zinc-900" />
+                    </div>
+                    <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
+                      Supports Instagram, Facebook, YouTube, X, Reddit &amp; Telegram
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => router.push("/posts-analysis")}
+                className="w-full sm:w-auto shrink-0 rounded-xl bg-[#235347] px-4 py-2.5 text-xs font-semibold text-[#DAF1DE] hover:bg-[#163832] transition shadow-xs text-center"
+              >
+                Analyze your first post &rarr;
+              </button>
+            </section>
+          )}
+
+          {/* ================================================== */}
+          {/* STATISTICS                                         */}
+          {/* ================================================== */}
+          <section className="grid gap-2.5 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              title="Posts analyzed"
+              value={stats.totalPosts > 0 ? `${stats.totalPosts}` : "0"}
+              change={stats.totalPosts > 0 ? `${stats.totalPosts} analyzed` : "No posts yet"}
+              icon={FileText}
+            />
+
+            <StatCard
+              title="Total engagement"
+              value={stats.formattedEngagement}
+              change={stats.totalEngagement > 0 ? "Real interactions" : "0 interactions"}
+              icon={BarChart3}
+            />
+
+            <StatCard
+              title="Positive sentiment"
+              value={`${stats.positiveSentimentPercent}%`}
+              change={stats.totalPosts > 0 ? `${stats.positiveSentimentPercent}% positive` : "No data"}
+              icon={TrendingUp}
+            />
+
+            <StatCard
+              title="Active alerts"
+              value={`${stats.activeAlerts}`}
+              change={stats.activeAlerts > 0 ? "Spike detected" : "All clean"}
+              icon={AlertTriangle}
+              positive={stats.activeAlerts === 0}
+            />
+          </section>
+
+          {/* ================================================== */}
+          {/* SENTIMENT + EMERGING ISSUE                         */}
+          {/* ================================================== */}
+          <section className="mt-6 grid gap-6 grid-cols-1 xl:grid-cols-[1.7fr_1fr]">
+            <SentimentChart posts={posts} />
+            <EmergingIssue posts={posts} />
+          </section>
+
+          {/* ================================================== */}
+          {/* TRENDING + RECENT ACTIVITY                         */}
+          {/* ================================================== */}
+          <section className="mt-6 grid gap-6 grid-cols-1 xl:grid-cols-2">
+            <TrendingTopics posts={posts} />
+            <RecentActivity posts={posts} />
+          </section>
+
+          {/* ================================================== */}
+          {/* EXECUTIVE INTELLIGENCE REPORTS                     */}
+          {/* ================================================== */}
+          <section className="card-hanging mt-6 rounded-2xl border border-zinc-200/80 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 p-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-zinc-100 dark:border-[#163832]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#235347]/20 bg-[#DAF1DE] dark:bg-[#235347]/40 text-[#235347] dark:text-[#8EB69B]">
+                  <FileText size={18} strokeWidth={2} />
+                </div>
+                <div>
+                  <p className="font-display text-sm font-bold text-zinc-950 dark:text-white">
+                    Generated Intelligence Reports
+                  </p>
+                  <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                    {reports.length} reports available • Automatically generated from post analyses and monitored feeds
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => router.push("/reports")}
+                className="text-xs font-semibold text-[#235347] dark:text-[#8EB69B] hover:underline flex items-center gap-1 self-start sm:self-auto"
+              >
+                <span>View all reports ({reports.length})</span>
+                <span>&rarr;</span>
+              </button>
+            </div>
+
+            {reports.length === 0 ? (
+              <div className="mt-4 rounded-xl border border-dashed border-zinc-200 dark:border-[#163832] p-6 text-center">
+                <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  No intelligence reports generated yet
+                </p>
+                <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400 max-w-sm mx-auto">
+                  Reports are automatically synthesized as you analyze social media posts or track brand feeds.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                {reports.slice(0, 3).map((r) => (
+                  <div
+                    key={r.id}
+                    onClick={() => router.push(`/reports?id=${r.id}`)}
+                    className="card-hanging cursor-pointer group rounded-xl border border-zinc-200/70 dark:border-[#163832] bg-zinc-50/50 dark:bg-[#163832]/40 p-4 shadow-2xs space-y-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold text-[#235347] dark:text-[#8EB69B] uppercase">
+                        {r.type}
+                      </span>
+                      <span className="text-[10px] text-zinc-400 font-mono">{r.date}</span>
+                    </div>
+                    <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-[#235347] dark:group-hover:text-[#8EB69B] transition line-clamp-1">
+                      {r.title}
+                    </h4>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed">
+                      {r.summary}
+                    </p>
+                    <div className="flex items-center justify-between pt-1 text-[10px] font-mono text-zinc-400 border-t border-zinc-100 dark:border-[#163832]/60">
+                      <span>{r.sources.join(", ")}</span>
+                      <span className="text-[#235347] dark:text-[#8EB69B] font-semibold group-hover:translate-x-0.5 transition">
+                        Preview &rarr;
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* ================================================== */}
+          {/* DATA COLLECTION STATUS                             */}
+          {/* ================================================== */}
+          <section className="card-hanging mt-6 rounded-2xl border border-zinc-200/80 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 p-5 shadow-xs">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#235347]/20 bg-[#DAF1DE] dark:bg-[#235347]/40 text-[#235347] dark:text-[#8EB69B]">
+                  <Activity size={18} strokeWidth={2} />
+                </div>
+
+                <div>
+                  <p className="font-display text-sm text-zinc-950 dark:text-white">
+                    Data collection status
+                  </p>
+                  <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                    Your connected platforms are actively being parsed and analyzed.
+                  </p>
+                </div>
+              </div>
+
+              <div className="inline-flex items-center gap-2 rounded-lg border border-zinc-200/90 dark:border-[#163832] bg-white/90 dark:bg-[#163832]/60 px-3 py-1.5 text-xs font-medium text-zinc-800 dark:text-zinc-200 shadow-2xs backdrop-blur-xs">
+                <span
+                  className={`h-2 w-2 rounded-full shrink-0 ${
+                    profile?.source
+                      ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.55)]"
+                      : "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.55)]"
+                  }`}
+                />
+                <span className="font-mono text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">
+                  {profile?.source
+                    ? "Collection active"
+                    : "No source connected"}
+                </span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  );
+}

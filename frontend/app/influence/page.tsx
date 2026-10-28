@@ -1,0 +1,602 @@
+"use client";
+
+import { useMemo, useState, useEffect } from "react";
+import {
+  Activity,
+  ArrowLeft,
+  ArrowUpRight,
+  FileText,
+  BarChart2,
+  Maximize2,
+  Minus,
+  Monitor,
+  Network,
+  Plus,
+  Users,
+  X,
+  Zap,
+} from "lucide-react";
+import Link from "next/link";
+
+import Sidebar from "../components/Sidebar";
+import DashboardHeader from "../components/DashboardHeader";
+import GridSparkles from "../components/ui/GridSparkles";
+import {
+  useAnalyzedPosts,
+  computeInfluenceNetwork,
+  NetworkNode,
+  NodeColor,
+} from "@/src/lib/analyzedPostsStore";
+
+const fallbackNodes: NetworkNode[] = [
+  {
+    id: "central",
+    name: "Public Figure",
+    type: "Monitored Profile",
+    x: 50,
+    y: 50,
+    size: 82,
+    influence: "94",
+    color: "blue",
+  },
+  {
+    id: "sportsmedia",
+    name: "Sports Media",
+    type: "Media",
+    x: 23,
+    y: 27,
+    size: 58,
+    influence: "82",
+    color: "purple",
+  },
+  {
+    id: "creator",
+    name: "Top Creator",
+    type: "Influencer",
+    x: 77,
+    y: 25,
+    size: 62,
+    influence: "79",
+    color: "cyan",
+  },
+  {
+    id: "fans",
+    name: "Fan Community",
+    type: "Community",
+    x: 78,
+    y: 70,
+    size: 56,
+    influence: "73",
+    color: "green",
+  },
+  {
+    id: "news",
+    name: "News Network",
+    type: "Media",
+    x: 23,
+    y: 73,
+    size: 54,
+    influence: "68",
+    color: "orange",
+  },
+  {
+    id: "analyst",
+    name: "Analyst",
+    type: "Creator",
+    x: 50,
+    y: 15,
+    size: 45,
+    influence: "61",
+    color: "pink",
+  },
+  {
+    id: "community",
+    name: "Sports Community",
+    type: "Community",
+    x: 51,
+    y: 85,
+    size: 48,
+    influence: "57",
+    color: "yellow",
+  },
+];
+
+const fallbackConnections: [string, string][] = [
+  ["central", "sportsmedia"],
+  ["central", "creator"],
+  ["central", "fans"],
+  ["central", "news"],
+  ["central", "analyst"],
+  ["central", "community"],
+  ["sportsmedia", "analyst"],
+  ["sportsmedia", "news"],
+  ["creator", "analyst"],
+  ["creator", "fans"],
+  ["fans", "community"],
+  ["news", "community"],
+];
+
+const colorMap: Record<NodeColor, string> = {
+  blue: "border-[#235347] text-[#235347] dark:border-[#8EB69B] dark:text-[#8EB69B] bg-white dark:bg-[#0B2B26] shadow-[#235347]/20",
+  purple: "border-purple-500 text-purple-600 dark:text-purple-400 bg-white dark:bg-[#0B2B26] shadow-purple-500/20",
+  cyan: "border-cyan-500 text-cyan-600 dark:text-cyan-400 bg-white dark:bg-[#0B2B26] shadow-cyan-500/20",
+  green: "border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-white dark:bg-[#0B2B26] shadow-emerald-500/20",
+  orange: "border-orange-500 text-orange-600 dark:text-orange-400 bg-white dark:bg-[#0B2B26] shadow-orange-500/20",
+  pink: "border-pink-500 text-pink-600 dark:text-pink-400 bg-white dark:bg-[#0B2B26] shadow-pink-500/20",
+  yellow: "border-amber-500 text-amber-600 dark:text-amber-400 bg-white dark:bg-[#0B2B26] shadow-amber-500/20",
+};
+
+export default function InfluencePage() {
+  const { posts, isMounted } = useAnalyzedPosts();
+  const hasData = isMounted && posts.length > 0;
+
+  const { nodes, connections } = useMemo(() => {
+    if (!hasData) {
+      return { nodes: [], connections: [] };
+    }
+    return computeInfluenceNetwork(posts);
+  }, [hasData, posts]);
+
+  const [selectedNode, setSelectedNode] = useState<string>("central");
+  const [zoom, setZoom] = useState(1);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Set default selected node whenever nodes change
+  useEffect(() => {
+    if (nodes.length > 0) {
+      setSelectedNode(nodes[0].id);
+    }
+  }, [nodes]);
+
+  const activeNodes = hasData ? nodes : fallbackNodes;
+  const activeConnections = hasData ? connections : fallbackConnections;
+
+  const selected = activeNodes.find((node) => node.id === selectedNode) || activeNodes[0];
+  const getNode = (id: string) => activeNodes.find((node) => node.id === id);
+
+  return (
+    <div className="relative min-h-screen bg-[#fafafa] dark:bg-[#051F20] text-zinc-900 dark:text-zinc-100 selection:bg-[#8EB69B]/35 selection:text-[#051F20] dark:selection:bg-[#235347]/40 dark:selection:text-[#DAF1DE] transition-colors duration-150">
+      <GridSparkles />
+      <Sidebar
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+      />
+
+      <main className="relative z-10 lg:ml-[270px]">
+        <DashboardHeader onMenuClick={() => setMobileMenuOpen(true)} />
+
+        {/* ================================================== */}
+        {/* MOBILE VIEW: INFLUENCE NETWORK NOT ADDED ON MOBILE */}
+        {/* ================================================== */}
+        <div className="block md:hidden px-3 py-6 sm:py-8 max-w-lg mx-auto text-center">
+          <div className="rounded-3xl border border-zinc-200/80 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 p-5 sm:p-8 shadow-xs">
+            <div className="mx-auto flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-[#DAF1DE] dark:bg-[#235347]/40 text-[#235347] dark:text-[#8EB69B] mb-3.5 sm:mb-4">
+              <Monitor className="h-6 w-6 sm:h-7 sm:w-7" />
+            </div>
+            <span className="inline-block rounded-full bg-[#DAF1DE] dark:bg-[#163832]/60 border border-[#8EB69B]/30 px-3 py-1 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#235347] dark:text-[#8EB69B]">
+              Desktop Only Feature
+            </span>
+            <h2 className="mt-2.5 sm:mt-3 font-display text-xl xs:text-2xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">
+              Influence Network is Not Available on Mobile
+            </h2>
+            <p className="mt-2 text-xs sm:text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+              The multi-entity relationship graph and interactive topology canvas require a larger desktop display with precision cursor interaction.
+            </p>
+            <div className="mt-5 sm:mt-6 flex flex-col gap-2.5">
+              <Link
+                href="/"
+                className="flex items-center justify-center gap-2 rounded-xl bg-[#235347] px-5 py-3 text-xs font-bold text-white dark:text-[#DAF1DE] shadow-xs hover:bg-[#163832] transition"
+              >
+                <ArrowLeft size={14} />
+                <span>Return to Dashboard</span>
+              </Link>
+              <Link
+                href="/posts-analysis"
+                className="flex items-center justify-center gap-2 rounded-xl border border-zinc-200 dark:border-[#163832] bg-zinc-50 dark:bg-[#051F20]/60 px-5 py-2.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-[#163832] transition"
+              >
+                <BarChart2 size={14} />
+                <span>Go to Posts Analysis</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* ================================================== */}
+        {/* DESKTOP VIEW: FULL INFLUENCE NETWORK CANVAS        */}
+        {/* ================================================== */}
+        <div className="hidden md:block px-4 py-5 sm:px-6 sm:py-8 lg:px-8 max-w-6xl mx-auto overflow-x-hidden">
+          <div className="space-y-6 sm:space-y-8">
+            {/* ================================================== */}
+            {/* HEADER                                             */}
+            {/* ================================================== */}
+            <div className="flex flex-col items-center text-center sm:items-start sm:text-left sm:flex-row sm:justify-between sm:items-end gap-4 sm:gap-6">
+              <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
+                <h1 className="font-display text-2xl xs:text-3xl sm:text-4xl lg:text-5xl tracking-tight text-zinc-950 dark:text-zinc-50 text-center sm:text-left">
+                  Influence Network
+                </h1>
+                <p className="mt-1.5 sm:mt-2 max-w-2xl text-xs sm:text-sm lg:text-base leading-relaxed text-zinc-600 dark:text-zinc-400 text-center sm:text-left mx-auto sm:mx-0">
+                  Discover how accounts, key creators, media outlets, and communities interact around your monitored profile.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto">
+                <Link
+                  href="/reports?type=Social Handles Analysis"
+                  className="flex items-center gap-1.5 rounded-xl border border-[#235347]/30 bg-[#235347]/10 hover:bg-[#235347]/20 px-3.5 py-1.5 text-xs font-semibold text-[#235347] dark:text-[#8EB69B] transition shrink-0"
+                >
+                  <FileText size={14} />
+                  <span>Handles Reports</span>
+                </Link>
+
+                <div className="inline-flex items-center gap-2 rounded-lg border border-zinc-200/90 dark:border-[#163832] bg-white/90 dark:bg-[#0B2B26]/90 px-3 py-1.5 text-xs font-medium text-zinc-800 dark:text-zinc-200 shadow-2xs backdrop-blur-xs">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.55)] shrink-0" />
+                  <span className="font-mono text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">
+                    {hasData ? `${nodes.length} Entities Mapped` : "Network ready"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Zero-Data Onboarding Banner */}
+            {!hasData && (
+              <div className="rounded-3xl border border-dashed border-[#235347]/30 dark:border-[#8EB69B]/30 bg-[#DAF1DE]/40 dark:bg-[#0B2B26]/60 p-6 sm:p-8 text-center transition">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#235347]/10 dark:bg-[#235347]/30 text-[#235347] dark:text-[#8EB69B] mb-3">
+                  <Network size={24} />
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-zinc-950 dark:text-zinc-50">
+                  No influence network generated yet
+                </h3>
+                <p className="mt-1.5 text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 max-w-md mx-auto">
+                  Analyze a social media post to automatically construct a live relationship graph mapping author, top commenters, and connected narratives.
+                </p>
+                <div className="mt-5">
+                  <Link
+                    href="/posts-analysis"
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#235347] px-5 py-2.5 text-xs font-bold text-white dark:text-[#DAF1DE] hover:bg-[#163832] transition shadow-xs"
+                  >
+                    <BarChart2 size={14} />
+                    Analyze Your First Post
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* ================================================== */}
+            {/* NETWORK CANVAS CONTAINER                           */}
+            {/* ================================================== */}
+            <section className="card-hanging relative overflow-hidden rounded-2xl sm:rounded-3xl border border-zinc-200/80 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 shadow-xs">
+              {/* Toolbar */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-100 dark:border-[#163832] px-3.5 py-3 sm:px-6 sm:py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#235347]/20 dark:border-[#8EB69B]/30 bg-[#DAF1DE] dark:bg-[#235347]/40 text-[#235347] dark:text-[#8EB69B] shrink-0">
+                    <Activity size={17} />
+                  </div>
+                  <div>
+                    <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                      {hasData ? "Active Post Influence Map" : "Sample Entity Map (Preview)"}
+                    </p>
+                    <p className="text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400">
+                      {hasData
+                        ? `${nodes.length} entities · ${connections.length} connections`
+                        : "Analyze a post to map real network connections"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Zoom controls */}
+                <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setZoom((v) => Math.max(0.7, v - 0.1))}
+                    className="rounded-lg border border-zinc-200 dark:border-[#163832] bg-zinc-50 dark:bg-[#051F20]/80 p-1.5 sm:p-2 text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-100 dark:hover:bg-[#163832] hover:text-zinc-950 dark:hover:text-zinc-100"
+                    aria-label="Zoom out"
+                  >
+                    <Minus size={15} />
+                  </button>
+
+                  <span className="w-10 sm:w-12 text-center text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                    {Math.round(zoom * 100)}%
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setZoom((v) => Math.min(1.4, v + 0.1))}
+                    className="rounded-lg border border-zinc-200 dark:border-[#163832] bg-zinc-50 dark:bg-[#051F20]/80 p-1.5 sm:p-2 text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-100 dark:hover:bg-[#163832] hover:text-zinc-950 dark:hover:text-zinc-100"
+                    aria-label="Zoom in"
+                  >
+                    <Plus size={15} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setZoom(1)}
+                    className="ml-1 rounded-lg border border-zinc-200 dark:border-[#163832] bg-zinc-50 dark:bg-[#051F20]/80 p-1.5 sm:p-2 text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-100 dark:hover:bg-[#163832] hover:text-zinc-950 dark:hover:text-zinc-100"
+                    aria-label="Reset zoom"
+                  >
+                    <Maximize2 size={15} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Canvas */}
+              <div
+                className="relative h-[360px] sm:h-[550px] overflow-hidden bg-slate-50/50 dark:bg-[#051F20]/60"
+              >
+                {/* SVG Connections */}
+                <svg
+                  className="absolute inset-0 h-full w-full pointer-events-none"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  <defs>
+                    <linearGradient id="networkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#235347" stopOpacity="0.5" />
+                      <stop offset="100%" stopColor="#8EB69B" stopOpacity="0.5" />
+                    </linearGradient>
+                  </defs>
+
+                  {activeConnections.map(([from, to]) => {
+                    const start = getNode(from);
+                    const end = getNode(to);
+                    if (!start || !end) return null;
+                    const isCentral = from === "central" || to === "central";
+
+                    return (
+                      <line
+                        key={`${from}-${to}`}
+                        x1={start.x}
+                        y1={start.y}
+                        x2={end.x}
+                        y2={end.y}
+                        stroke={isCentral ? "#235347" : "rgba(142, 182, 155, 0.3)"}
+                        strokeWidth={isCentral ? "0.35" : "0.2"}
+                        strokeDasharray={isCentral ? "1 0.8" : "0.6 1"}
+                      />
+                    );
+                  })}
+                </svg>
+
+                {/* Nodes */}
+                <div
+                  className="absolute inset-0 transition-transform duration-300"
+                  style={{ transform: `scale(${zoom})` }}
+                >
+                  {activeNodes.map((node) => {
+                    const isSelected = selected?.id === node.id;
+
+                    return (
+                      <button
+                        key={node.id}
+                        type="button"
+                        onClick={() => setSelectedNode(node.id)}
+                        className="absolute -translate-x-1/2 -translate-y-1/2 focus:outline-none"
+                        style={{
+                          left: `${node.x}%`,
+                          top: `${node.y}%`,
+                        }}
+                      >
+                        {/* Pulse effect */}
+                        {node.id === "central" && (
+                          <span
+                            className="absolute rounded-full bg-[#235347]/20 dark:bg-[#8EB69B]/20 animate-ping"
+                            style={{
+                              width: node.size + 16,
+                              height: node.size + 16,
+                              left: -8,
+                              top: -8,
+                            }}
+                          />
+                        )}
+
+                        {/* Node circle */}
+                        <span
+                          className={`relative flex items-center justify-center rounded-full border-2 bg-white dark:bg-[#0B2B26] shadow-md transition-all duration-200 ${
+                            colorMap[node.color] || colorMap.blue
+                          } ${
+                            isSelected
+                              ? "scale-110 ring-4 ring-[#235347]/40 dark:ring-[#8EB69B]/40"
+                              : "hover:scale-105"
+                          }`}
+                          style={{
+                            width: node.size,
+                            height: node.size,
+                          }}
+                        >
+                          <span className="relative flex flex-col items-center">
+                            {node.id === "central" ? (
+                              <Network size={22} className="text-[#235347] dark:text-[#8EB69B]" />
+                            ) : (
+                              <Users size={17} />
+                            )}
+                            <span className="mt-0.5 text-[11px] font-extrabold text-zinc-900 dark:text-zinc-100">
+                              {node.influence}
+                            </span>
+                          </span>
+                        </span>
+
+                        {/* Node label */}
+                        <span className="absolute left-1/2 top-full mt-2 w-max -translate-x-1/2 pointer-events-none">
+                          <span
+                            className={`block text-xs font-bold text-center ${
+                              isSelected ? "text-[#235347] dark:text-[#8EB69B]" : "text-zinc-800 dark:text-zinc-200"
+                            }`}
+                          >
+                            {node.name}
+                          </span>
+                          <span className="block text-[10px] text-zinc-400 dark:text-zinc-500 text-center">
+                            {node.type}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Legend */}
+                <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 rounded-xl sm:rounded-2xl border border-zinc-200 dark:border-[#163832] bg-white/95 dark:bg-[#0B2B26]/95 p-2 sm:p-3 shadow-xs backdrop-blur-md max-w-[calc(100%-16px)] sm:max-w-none">
+                  <p className="mb-1 sm:mb-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                    Network tiers
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-[10px] sm:text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-[#235347] dark:bg-[#8EB69B]" />
+                      Primary (90+)
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-purple-500" />
+                      Amplifiers (75+)
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                      Community (50+)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Selected Entity Details Panel */}
+              {selected && (
+                <div className="border-t border-zinc-100 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 p-3.5 sm:p-5 sm:px-6">
+                  <div className="flex flex-col justify-between gap-3 sm:gap-4 sm:flex-row sm:items-center">
+                    <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+                      <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl border border-[#235347]/20 dark:border-[#8EB69B]/30 bg-[#DAF1DE] dark:bg-[#235347]/40 text-[#235347] dark:text-[#8EB69B]">
+                        <Users size={18} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                          <p className="text-sm sm:text-base font-bold text-zinc-950 dark:text-zinc-100 truncate">
+                            {selected.name}
+                          </p>
+                          <span className="rounded-full border border-[#235347]/30 dark:border-[#8EB69B]/30 bg-[#DAF1DE] dark:bg-[#163832]/60 px-2 py-0.5 text-[11px] font-semibold text-[#235347] dark:text-[#8EB69B]">
+                            {selected.type}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                          {hasData
+                            ? "Active entity connected to analyzed post engagement network."
+                            : "Sample entity in preview network graph."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 sm:gap-6 self-start sm:self-auto">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                          Influence score
+                        </p>
+                        <p className="text-sm sm:text-base font-extrabold text-zinc-950 dark:text-zinc-100">
+                          {selected.influence}/100
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                          Direct links
+                        </p>
+                        <p className="text-sm sm:text-base font-extrabold text-zinc-950 dark:text-zinc-100">
+                          {
+                            activeConnections.filter(
+                              ([from, to]) =>
+                                from === selected.id || to === selected.id
+                            ).length
+                          }
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedNode("central")}
+                        className="rounded-xl border border-zinc-200 dark:border-[#163832] p-2 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-[#163832] hover:text-zinc-900 dark:hover:text-zinc-100 transition"
+                        aria-label="Reset selected node"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            {/* ================================================== */}
+            {/* NETWORK METRICS                                    */}
+            {/* ================================================== */}
+            <section className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                icon={Network}
+                label="Connected entities"
+                value={hasData ? `${nodes.length}` : "0"}
+                description={hasData ? "Across analyzed content" : "No network analyzed"}
+              />
+              <MetricCard
+                icon={Users}
+                label="High influence"
+                value={hasData ? `${nodes.filter((n) => parseInt(n.influence) >= 70).length}` : "0"}
+                description={hasData ? "Key driving voices" : "Awaiting post analysis"}
+              />
+              <MetricCard
+                icon={Activity}
+                label="Active connections"
+                value={hasData ? `${connections.length}` : "0"}
+                description={hasData ? "Relationship edges mapped" : "0 edges"}
+              />
+              <MetricCard
+                icon={Zap}
+                label="Network growth"
+                value={hasData ? `+${Math.min(95, 15 + posts.length * 7)}%` : "0%"}
+                description="calculated engagement momentum"
+                positive={hasData}
+              />
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+/* ================================================== */
+/* METRIC CARD                                        */
+/* ================================================== */
+
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  description,
+  positive = false,
+}: {
+  icon: typeof Network;
+  label: string;
+  value: string;
+  description: string;
+  positive?: boolean;
+}) {
+  return (
+    <div className="card-hanging rounded-2xl border border-zinc-200/80 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 p-5 shadow-xs">
+      <div className="flex items-start justify-between">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#235347]/20 dark:border-[#8EB69B]/30 bg-[#DAF1DE] dark:bg-[#235347]/40 text-[#235347] dark:text-[#8EB69B]">
+          <Icon size={18} />
+        </div>
+
+        {positive && (
+          <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-mono font-semibold text-emerald-800 dark:text-emerald-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.55)] shrink-0" />
+            Live
+          </span>
+        )}
+      </div>
+
+      <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+        {label}
+      </p>
+
+      <p className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-950 dark:text-zinc-50">
+        {value}
+      </p>
+
+      <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+        {description}
+      </p>
+    </div>
+  );
+}

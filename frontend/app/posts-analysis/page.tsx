@@ -1,0 +1,2890 @@
+"use client";
+
+import {
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { useSearchParams } from "next/navigation";
+
+import {
+  Activity,
+  AlertCircle,
+  ArrowUpRight,
+  BarChart2,
+  Calendar,
+  CheckCircle2,
+  Clock3,
+  Cpu,
+  ExternalLink,
+  Eye,
+  FileText,
+  Heart,
+  Image as ImageIcon,
+  Link2,
+  Loader2,
+  MessageCircle,
+  Minus,
+  Play,
+  Search,
+  ShieldAlert,
+  ThumbsDown,
+  ThumbsUp,
+  Trash2,
+  TrendingUp,
+  User,
+  X,
+  Zap,
+} from "lucide-react";
+
+import {
+  useApi,
+  type AnalyzedPostResponse,
+  API_URL,
+} from "@/src/lib/api";
+import Link from "next/link";
+import {
+  getActiveProfile,
+  hasConnectedDataSource,
+  getDataSources,
+  setDataSources,
+  getConnectedPlatforms,
+  setActiveProfile as saveActiveProfile,
+  DEFAULT_LOCAL_PROFILE,
+  type MonitoringProfile,
+} from "@/src/lib/monitoringStore";
+
+
+import Sidebar from "../components/Sidebar";
+import DashboardHeader from "../components/DashboardHeader";
+import GridSparkles from "../components/ui/GridSparkles";
+import PlatformPngIcon from "../components/PlatformPngIcon";
+import { useNotifications } from "../context/NotificationContext";
+import { useSettings } from "@/src/lib/settingsStore";
+import { generateReportFromPost } from "@/src/lib/reportsStore";
+import {
+  useAnalyzedPosts,
+  type AnalysisRecord,
+  type AudienceSentiment,
+  type InstagramComment,
+} from "@/src/lib/analyzedPostsStore";
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+
+function formatNumber(
+  value: number | null | undefined
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    Number.isNaN(value)
+  ) {
+    return "0";
+  }
+
+  return new Intl.NumberFormat(
+    "en-IN"
+  ).format(value);
+}
+
+function formatDate(
+  value: string | null | undefined
+) {
+  if (!value) {
+    return "Unknown";
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "Unknown";
+  }
+
+  return date.toLocaleString(
+    "en-IN",
+    {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }
+  );
+}
+
+function clamp(
+  value: number,
+  min = 0,
+  max = 100
+) {
+  return Math.min(
+    max,
+    Math.max(min, value)
+  );
+}
+
+/* =========================================================
+   SENTIMENT PIE CHART
+   ========================================================= */
+
+function SentimentPieChart({
+  positive,
+  negative,
+  neutral,
+}: {
+  positive: number;
+  negative: number;
+  neutral: number;
+}) {
+  const total =
+    positive +
+    negative +
+    neutral;
+
+  if (total === 0) {
+    return (
+      <div className="flex h-64 items-center justify-center text-zinc-500">
+        No sentiment data yet.
+      </div>
+    );
+  }
+
+  const positivePercent =
+    (positive / total) * 100;
+
+  const negativePercent =
+    (negative / total) * 100;
+
+  const neutralPercent =
+    (neutral / total) * 100;
+
+  const positiveLength =
+    positivePercent;
+
+  const negativeLength =
+    negativePercent;
+
+  const neutralLength =
+    neutralPercent;
+
+  return (
+    <div className="flex flex-col items-center gap-8 md:flex-row">
+      <div className="relative h-56 w-56 shrink-0">
+        <svg
+          viewBox="0 0 42 42"
+          className="h-full w-full -rotate-90"
+        >
+          {/* Positive */}
+
+          <circle
+            cx="21"
+            cy="21"
+            r="15.9155"
+            fill="transparent"
+            stroke="#10b981"
+            strokeWidth="6"
+            strokeDasharray={`${positiveLength} ${
+              100 - positiveLength
+            }`}
+            strokeDashoffset="0"
+          />
+
+          {/* Negative */}
+
+          <circle
+            cx="21"
+            cy="21"
+            r="15.9155"
+            fill="transparent"
+            stroke="#f43f5e"
+            strokeWidth="6"
+            strokeDasharray={`${negativeLength} ${
+              100 - negativeLength
+            }`}
+            strokeDashoffset={`-${positiveLength}`}
+          />
+
+          {/* Neutral */}
+
+          <circle
+            cx="21"
+            cy="21"
+            r="15.9155"
+            fill="transparent"
+            stroke="#a1a1aa"
+            strokeWidth="6"
+            strokeDasharray={`${neutralLength} ${
+              100 - neutralLength
+            }`}
+            strokeDashoffset={`-${
+              positiveLength +
+              negativeLength
+            }`}
+          />
+        </svg>
+
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-3xl font-bold text-zinc-950 dark:text-white">
+            {total}
+          </span>
+
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+            analyzed
+          </span>
+        </div>
+      </div>
+
+      <div className="w-full space-y-4">
+        <SentimentLegend
+          label="Positive"
+          value={positive}
+          percentage={
+            positivePercent
+          }
+          dotClass="bg-emerald-500"
+        />
+
+        <SentimentLegend
+          label="Negative"
+          value={negative}
+          percentage={
+            negativePercent
+          }
+          dotClass="bg-rose-500"
+        />
+
+        <SentimentLegend
+          label="Neutral"
+          value={neutral}
+          percentage={
+            neutralPercent
+          }
+          dotClass="bg-zinc-400"
+        />
+      </div>
+    </div>
+  );
+}
+
+function SentimentLegend({
+  label,
+  value,
+  percentage,
+  dotClass,
+}: {
+  label: string;
+  value: number;
+  percentage: number;
+  dotClass: string;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-zinc-200/80 dark:border-white/5 bg-zinc-50/50 dark:bg-white/[0.02] px-4 py-3">
+      <div className="flex items-center gap-3">
+        <span
+          className={`h-3 w-3 rounded-full ${dotClass}`}
+        />
+
+        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          {label}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <span className="font-semibold text-zinc-950 dark:text-white">
+          {value}
+        </span>
+
+        <span className="text-sm text-zinc-500 dark:text-zinc-400">
+          {percentage.toFixed(1)}%
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   AUDIENCE SENTIMENT CHART
+   ========================================================= */
+
+function AudienceSentimentChart({
+  sentiment,
+  platform = "Instagram",
+}: {
+  sentiment?: AudienceSentiment;
+  platform?: string;
+}) {
+  if (
+    !sentiment ||
+    sentiment.dominant === "UNAVAILABLE"
+  ) {
+    const formattedPlatform =
+      platform.toUpperCase() === "FACEBOOK"
+        ? "Facebook"
+        : platform.toUpperCase() === "TWITTER" || platform.toUpperCase() === "X"
+        ? "X (Twitter)"
+        : platform.toUpperCase() === "YOUTUBE"
+        ? "YouTube"
+        : platform.toUpperCase() === "REDDIT"
+        ? "Reddit"
+        : platform.toUpperCase() === "TELEGRAM"
+        ? "Telegram"
+        : "Instagram";
+
+    return (
+      <div className="flex min-h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 dark:border-white/10 bg-zinc-50/50 dark:bg-black/20 px-6 text-center">
+        <MessageCircle className="mb-4 h-10 w-10 text-zinc-400 dark:text-zinc-600" />
+        <p className="font-medium text-zinc-700 dark:text-zinc-400">
+          Audience sentiment unavailable
+        </p>
+        <p className="mt-2 max-w-md text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+          {formattedPlatform} comments were not available for this post,
+          so SocialIntel will not guess the audience reaction.
+        </p>
+      </div>
+    );
+  }
+
+  const posVal = sentiment.positive ?? sentiment.positiveRatio ?? 0;
+  const negVal = sentiment.negative ?? sentiment.negativeRatio ?? 0;
+  const neuVal = sentiment.neutral ?? sentiment.neutralRatio ?? 0;
+
+  const positive = clamp(posVal * 100);
+  const negative = clamp(negVal * 100);
+  const neutral = clamp(neuVal * 100);
+
+  const total = positive + negative + neutral;
+
+  if (total <= 0) {
+    return (
+      <div className="flex min-h-[300px] items-center justify-center text-zinc-500">
+        No audience sentiment data.
+      </div>
+    );
+  }
+
+  const positivePercent = (positive / total) * 100;
+  const negativePercent = (negative / total) * 100;
+  const neutralPercent = (neutral / total) * 100;
+
+  const dominantLabel =
+    sentiment.dominant === "POSITIVE"
+      ? "Positive"
+      : sentiment.dominant === "NEGATIVE"
+        ? "Negative"
+        : sentiment.dominant === "NEUTRAL"
+          ? "Neutral"
+          : "Mixed";
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col items-center gap-7 md:flex-row">
+        <div className="relative h-52 w-52 shrink-0">
+          <svg
+            viewBox="0 0 42 42"
+            className="h-full w-full -rotate-90"
+          >
+            <circle
+              cx="21"
+              cy="21"
+              r="15.9155"
+              fill="transparent"
+              stroke="#10b981"
+              strokeWidth="6"
+              strokeDasharray={`${positivePercent} ${100 - positivePercent}`}
+              strokeDashoffset="0"
+            />
+            <circle
+              cx="21"
+              cy="21"
+              r="15.9155"
+              fill="transparent"
+              stroke="#f43f5e"
+              strokeWidth="6"
+              strokeDasharray={`${negativePercent} ${100 - negativePercent}`}
+              strokeDashoffset={`-${positivePercent}`}
+            />
+            <circle
+              cx="21"
+              cy="21"
+              r="15.9155"
+              fill="transparent"
+              stroke="#a1a1aa"
+              strokeWidth="6"
+              strokeDasharray={`${neutralPercent} ${100 - neutralPercent}`}
+              strokeDashoffset={`-${positivePercent + negativePercent}`}
+            />
+          </svg>
+
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              Dominant
+            </span>
+            <span className="mt-1 text-xl font-bold text-zinc-950 dark:text-white">
+              {dominantLabel}
+            </span>
+          </div>
+        </div>
+
+        <div className="w-full space-y-3">
+          <AudienceSentimentRow
+            label="Positive"
+            value={positive}
+            dotClass="bg-emerald-500"
+          />
+          <AudienceSentimentRow
+            label="Negative"
+            value={negative}
+            dotClass="bg-rose-500"
+          />
+          <AudienceSentimentRow
+            label="Neutral"
+            value={neutral}
+            dotClass="bg-zinc-400"
+          />
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-zinc-200/80 dark:border-white/5 bg-zinc-50/50 dark:bg-black/20 p-4">
+        <p className="text-xs uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+          Audience sentiment summary
+        </p>
+        <p className="mt-2 text-sm leading-6 text-zinc-700 dark:text-zinc-300">
+          {sentiment.explanation}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function AudienceSentimentRow({
+  label,
+  value,
+  dotClass,
+}: {
+  label: string;
+  value: number;
+  dotClass: string;
+}) {
+  return (
+    <div className="rounded-xl border border-zinc-200/80 dark:border-white/5 bg-zinc-50/50 dark:bg-white/[0.02] p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={`h-2.5 w-2.5 rounded-full ${dotClass}`} />
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{label}</span>
+        </div>
+        <span className="text-sm font-semibold text-zinc-950 dark:text-white">
+          {value.toFixed(1)}%
+        </span>
+      </div>
+
+      <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-white/5">
+        <div
+          className={`h-full rounded-full ${dotClass} transition-all duration-500`}
+          style={{ width: `${clamp(value)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   COMMENTS GRAPH
+   ========================================================= */
+
+function CommentInsights({
+  comments,
+  platform = "Instagram",
+}: {
+  comments: InstagramComment[];
+  platform?: string;
+}) {
+  const visibleComments = comments.filter(
+    (comment) => comment.text?.trim()
+  );
+
+  if (visibleComments.length === 0) {
+    const formattedPlatform =
+      platform.toUpperCase() === "FACEBOOK"
+        ? "Facebook"
+        : platform.toUpperCase() === "TWITTER" || platform.toUpperCase() === "X"
+        ? "X (Twitter)"
+        : platform.toUpperCase() === "YOUTUBE"
+        ? "YouTube"
+        : platform.toUpperCase() === "REDDIT"
+        ? "Reddit"
+        : platform.toUpperCase() === "TELEGRAM"
+        ? "Telegram"
+        : "Instagram";
+
+    return (
+      <div className="flex min-h-[260px] flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 dark:border-white/10 bg-zinc-50/50 dark:bg-black/20 px-6 text-center">
+        <MessageCircle className="mb-4 h-9 w-9 text-zinc-400 dark:text-zinc-600" />
+        <p className="font-medium text-zinc-700 dark:text-zinc-400">
+          No comments were returned
+        </p>
+        <p className="mt-2 max-w-md text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+          The backend only displays audience insights when real {formattedPlatform}{" "}
+          comments are returned by the data source.
+        </p>
+      </div>
+    );
+  }
+
+  const maxLikes = Math.max(
+    ...visibleComments.map((comment) => comment.likes ?? 0),
+    1
+  );
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-zinc-200/80 dark:border-white/5 bg-zinc-50/50 dark:bg-black/20 p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+              Recent audience comments
+            </p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              {visibleComments.length} real comments returned by the data source
+            </p>
+          </div>
+
+          <span className="rounded-full border border-zinc-200 dark:border-white/10 px-3 py-1 text-xs text-zinc-600 dark:text-zinc-400">
+            {visibleComments.length} comments
+          </span>
+        </div>
+
+        <div className="space-y-3">
+          {visibleComments.slice(0, 10).map((comment, index) => {
+            const likes = comment.likes ?? 0;
+            const likeWidth = Math.max(
+              (likes / maxLikes) * 100,
+              likes > 0 ? 4 : 0
+            );
+
+            return (
+              <div
+                key={comment.id ?? `${comment.username}-${index}`}
+                className="rounded-xl border border-zinc-200/80 dark:border-white/5 bg-white dark:bg-white/[0.02] p-4"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+                      {comment.username
+                        ? `@${comment.username}`
+                        : "Commenter"}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+                      {comment.text}
+                    </p>
+                  </div>
+
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Likes</p>
+                    <p className="mt-1 font-semibold text-zinc-900 dark:text-white">
+                      {formatNumber(likes)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-white/5">
+                  <div
+                    className="h-full rounded-full bg-blue-500 transition-all duration-500"
+                    style={{ width: `${likeWidth}%` }}
+                  />
+                </div>
+
+                {comment.timestamp && (
+                  <p className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-500">
+                    {formatDate(comment.timestamp)}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   ENGAGEMENT GRAPH
+   ========================================================= */
+
+function EngagementGraph({
+  records,
+}: {
+  records: AnalysisRecord[];
+}) {
+  if (records.length === 0) {
+    return (
+      <div className="flex h-64 items-center justify-center text-zinc-500">
+        Analyze posts to see engagement.
+      </div>
+    );
+  }
+
+  const points = records.map((record, index) => {
+    const likes = record.post.engagement.likes ?? 0;
+    const comments = record.post.engagement.comments ?? 0;
+    const shares = record.post.engagement.shares ?? 0;
+    const views = record.post.engagement.views ?? 0;
+
+    return {
+      index: index + 1,
+      likes,
+      comments,
+      shares,
+      views,
+      total: likes + comments + shares + views,
+    };
+  });
+
+  const maxValue = Math.max(
+    ...points.flatMap((point) => [
+      point.likes,
+      point.comments,
+      point.shares,
+      point.views,
+    ]),
+    1
+  );
+
+  const totals = {
+    likes: points.reduce((sum, point) => sum + point.likes, 0),
+    comments: points.reduce((sum, point) => sum + point.comments, 0),
+    shares: points.reduce((sum, point) => sum + point.shares, 0),
+    views: points.reduce((sum, point) => sum + point.views, 0),
+  };
+
+  const getHeight = (value: number) => {
+    if (value <= 0) return "0%";
+    return `${Math.max((value / maxValue) * 100, 3)}%`;
+  };
+
+  return (
+    <div className="w-full">
+      <div className="relative h-[320px] w-full overflow-hidden rounded-xl border border-zinc-200/80 dark:border-white/5 bg-zinc-50/50 dark:bg-black/20 p-4">
+        <div className="absolute inset-x-4 inset-y-4 flex flex-col justify-between pointer-events-none">
+          {[4, 3, 2, 1, 0].map((step) => (
+            <div key={step} className="flex items-center gap-3">
+              <span className="w-12 shrink-0 text-right text-[10px] text-zinc-500 dark:text-zinc-400">
+                {formatNumber(Math.round((maxValue * step) / 4))}
+              </span>
+              <div className="h-px flex-1 bg-zinc-200 dark:bg-white/[0.08]" />
+            </div>
+          ))}
+        </div>
+
+        <div className="absolute bottom-8 left-[68px] right-4 top-4 flex items-end justify-around gap-3">
+          {points.map((point) => (
+            <div key={point.index} className="flex h-full min-w-0 flex-1 items-end justify-center gap-1">
+              <div className="w-full max-w-[22px] rounded-t-md bg-red-500 transition-all duration-300 hover:bg-red-400" style={{ height: getHeight(point.likes) }} title={`Post ${point.index} • Likes: ${formatNumber(point.likes)}`} />
+              <div className="w-full max-w-[22px] rounded-t-md bg-blue-500 transition-all duration-300 hover:bg-blue-400" style={{ height: getHeight(point.comments) }} title={`Post ${point.index} • Comments: ${formatNumber(point.comments)}`} />
+              <div className="w-full max-w-[22px] rounded-t-md bg-purple-500 transition-all duration-300 hover:bg-purple-400" style={{ height: getHeight(point.shares) }} title={`Post ${point.index} • Shares: ${formatNumber(point.shares)}`} />
+              <div className="w-full max-w-[22px] rounded-t-md bg-green-500 transition-all duration-300 hover:bg-green-400" style={{ height: getHeight(point.views) }} title={`Post ${point.index} • Views: ${formatNumber(point.views)}`} />
+            </div>
+          ))}
+        </div>
+
+        <div className="absolute bottom-2 left-[68px] right-4 flex justify-around">
+          {points.map((point) => (
+            <span key={point.index} className="text-[10px] text-zinc-500 dark:text-zinc-400">Post {point.index}</span>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-wrap justify-center gap-6 text-xs">
+        <LegendItem label="Likes" className="bg-red-500" />
+        <LegendItem label="Comments" className="bg-blue-500" />
+        <LegendItem label="Shares" className="bg-purple-500" />
+        <LegendItem label="Views" className="bg-green-500" />
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <EngagementTotal label="Likes" value={totals.likes} />
+        <EngagementTotal label="Comments" value={totals.comments} />
+        <EngagementTotal label="Shares" value={totals.shares} />
+        <EngagementTotal label="Views" value={totals.views} />
+      </div>
+    </div>
+  );
+}
+
+function EngagementTotal({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border border-zinc-200/80 dark:border-white/5 bg-zinc-50/50 dark:bg-black/20 p-3 text-center">
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">{label}</p>
+      <p className="mt-1 font-semibold text-zinc-950 dark:text-white">{formatNumber(value)}</p>
+    </div>
+  );
+}
+
+function LegendItem({
+  label,
+  className,
+}: {
+  label: string;
+  className: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
+      <span
+        className={`h-2.5 w-2.5 rounded-full ${className}`}
+      />
+
+      {label}
+    </div>
+  );
+}
+
+/* =========================================================
+   MAIN PAGE
+   ========================================================= */
+
+function PostsAnalysisContent() {
+  const {
+    analyzePost,
+    getDataSources: fetchProfileSources,
+  } = useApi();
+  const { notifyAnalysisComplete, notifyEvent } = useNotifications();
+  const { posts: records, savePost, deletePost } = useAnalyzedPosts();
+  const { settings } = useSettings();
+
+  const searchParams = useSearchParams();
+  const viewPostParam = searchParams.get("viewPost") || searchParams.get("postUrl");
+  const analyzeUrlParam = searchParams.get("url") || searchParams.get("analyzeUrl");
+  const [selectedPostUrl, setSelectedPostUrl] = useState<string>("");
+
+  useEffect(() => {
+    if (viewPostParam) {
+      setSelectedPostUrl(viewPostParam);
+      setTimeout(() => {
+        const el = document.getElementById("post-analysis-detail");
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 250);
+    }
+  }, [viewPostParam]);
+
+  const [activeProfile, setActiveProfileState] = useState<MonitoringProfile | null>(() => {
+    if (typeof window !== "undefined") {
+      return getActiveProfile();
+    }
+    return null;
+  });
+
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      const p = getActiveProfile();
+      return getConnectedPlatforms(p);
+    }
+    return [];
+  });
+
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [missingPlatformPrompt, setMissingPlatformPrompt] = useState<{
+    platformId: string;
+    platformName: string;
+  } | null>(null);
+
+  const checkDataSourceStatus = async () => {
+    let prof = getActiveProfile();
+    if (!prof) {
+      setActiveProfileState(null);
+      setConnectedPlatforms([]);
+      return;
+    }
+    setActiveProfileState(prof);
+
+    // 1. Gather all currently known platforms from local store immediately (0ms delay)
+    const localPlatforms = getConnectedPlatforms(prof);
+    if (localPlatforms.length > 0) {
+      setConnectedPlatforms(localPlatforms);
+    }
+
+    const platformsSet = new Set<string>(localPlatforms.map((p) => p.toLowerCase()));
+
+    // 2. Determine target numeric ID (if numeric or if name is "Despire")
+    let targetProfileId: number | null = null;
+    if (prof.id && !isNaN(Number(prof.id))) {
+      targetProfileId = Number(prof.id);
+    } else if (prof.name && prof.name.trim().toLowerCase() === "despire") {
+      targetProfileId = 2;
+    }
+
+    // 3. Fast non-blocking background fetch from backend
+    const apiUrl = API_URL;
+    const pId = targetProfileId || 2;
+
+    try {
+      const res = await fetch(`${apiUrl}/api/data-sources?profileId=${pId}`, {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          json.data.forEach((ds: any) => {
+            const st = String(ds.status || "").toLowerCase();
+            if (st === "connected" || st === "active" || st === "syncing") {
+              platformsSet.add(String(ds.platform).toLowerCase());
+            }
+          });
+
+          // Map and cache in local storage so all components stay synced
+          const mappedSources = json.data.map((ds: any) => ({
+            id: String(ds.id),
+            platform: String(ds.platform).toLowerCase() as any,
+            name: ds.platform,
+            handleOrUrl: ds.username ? (ds.username.startsWith("@") ? ds.username : `@${ds.username}`) : (ds.profileUrl || ""),
+            status: String(ds.status || "").toUpperCase() === "CONNECTED" ? "active" : "paused",
+            profileId: String(pId),
+          }));
+          setDataSources(mappedSources, true);
+
+          if (!prof.id || isNaN(Number(prof.id))) {
+            prof.id = pId;
+          }
+        }
+      }
+    } catch {
+      // background fetch silent fallback
+    }
+
+    const platformList = Array.from(platformsSet);
+    if (platformList.length > 0) {
+      setConnectedPlatforms(platformList);
+      const updatedProf: MonitoringProfile = {
+        ...prof,
+        sources: platformList,
+        source: prof.source || platformList[0],
+      };
+      saveActiveProfile(updatedProf, true);
+      setActiveProfileState(updatedProf);
+    }
+  };
+
+  const isPlatformConnected = (platformId: string) => {
+    const lower = platformId.toLowerCase();
+    if (connectedPlatforms.includes(lower)) return true;
+    if (hasConnectedDataSource(activeProfile, lower)) return true;
+    // If the profile has any connected platform, allow analyzing other social platforms as well
+    return connectedPlatforms.length > 0;
+  };
+
+  const detectPlatformFromUrl = (rawUrl: string): { id: string; name: string } | null => {
+    const lower = rawUrl.toLowerCase().trim();
+    if (lower.includes("facebook.com") || lower.includes("fb.com") || lower.includes("fb.watch")) {
+      return { id: "facebook", name: "Facebook" };
+    }
+    if (lower.includes("instagram.com") || lower.includes("instagr.am")) {
+      return { id: "instagram", name: "Instagram" };
+    }
+    if (lower.includes("youtube.com") || lower.includes("youtu.be")) {
+      return { id: "youtube", name: "YouTube" };
+    }
+    if (lower.includes("twitter.com") || lower.includes("x.com")) {
+      return { id: "x", name: "X / Twitter" };
+    }
+    if (lower.includes("t.me") || lower.includes("telegram.me")) {
+      return { id: "telegram", name: "Telegram" };
+    }
+    if (lower.includes("reddit.com") || lower.includes("redd.it")) {
+      return { id: "reddit", name: "Reddit" };
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    checkDataSourceStatus();
+    const handleProfileChange = () => checkDataSourceStatus();
+    const handleSourcesChange = () => checkDataSourceStatus();
+
+    window.addEventListener("socialint:profile-changed", handleProfileChange);
+    window.addEventListener("socialint:sources-changed", handleSourcesChange);
+    return () => {
+      window.removeEventListener("socialint:profile-changed", handleProfileChange);
+      window.removeEventListener("socialint:sources-changed", handleSourcesChange);
+    };
+  }, []);
+
+  const [
+    postUrl,
+    setPostUrl,
+  ] = useState("");
+
+  useEffect(() => {
+    if (analyzeUrlParam) {
+      const decoded = decodeURIComponent(analyzeUrlParam).trim();
+      setPostUrl(decoded);
+      setTimeout(() => {
+        const el = document.getElementById("analyze-post-input");
+        if (el) {
+          el.focus();
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 250);
+    }
+  }, [analyzeUrlParam]);
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const handleUrlChange = (val: string) => {
+    setPostUrl(val);
+    const trimmed = val.trim();
+    if (!trimmed) {
+      setMissingPlatformPrompt(null);
+      setError("");
+      return;
+    }
+    const detected = detectPlatformFromUrl(trimmed);
+    if (detected && !isPlatformConnected(detected.id) && connectedPlatforms.length === 0) {
+      setMissingPlatformPrompt({
+        platformId: detected.id,
+        platformName: detected.name,
+      });
+    } else {
+      setMissingPlatformPrompt(null);
+      if (error && error.includes("Data source required")) {
+        setError("");
+      }
+    }
+  };
+
+  /* =======================================================
+     ANALYZE POST
+     ======================================================= */
+
+  const handleAnalyze =
+    async () => {
+      const url =
+        postUrl.trim();
+
+      let currentProf = activeProfile;
+      if (!currentProf) {
+        currentProf = getActiveProfile() || DEFAULT_LOCAL_PROFILE;
+        setActiveProfileState(currentProf);
+      }
+
+      if (!url) {
+        setError(
+          "Please paste a post URL (YouTube, X / Twitter, Facebook, Instagram, Telegram, or Reddit)."
+        );
+        return;
+      }
+
+      const detected = detectPlatformFromUrl(url);
+      if (!detected) {
+        setError(
+          "Please enter a valid social post URL (YouTube, X, Facebook, Instagram, Telegram, or Reddit)."
+        );
+        return;
+      }
+
+      // If user has not connected feeds yet, we advise them but do not block public post analysis
+      if (connectedPlatforms.length === 0 && !isPlatformConnected(detected.id)) {
+        setMissingPlatformPrompt({
+          platformId: detected.id,
+          platformName: detected.name,
+        });
+      } else {
+        setMissingPlatformPrompt(null);
+      }
+
+      setError("");
+      setLoading(true);
+
+      try {
+        const response =
+          await analyzePost(
+            url,
+            currentProf && !isNaN(Number(currentProf.id)) ? Number(currentProf.id) : 1
+          );
+
+        if (
+          !response ||
+          !response.success
+        ) {
+          throw new Error(
+            response?.message ||
+              "Post analysis failed."
+          );
+        }
+
+if (!response.data) {
+  throw new Error(
+    response.message ||
+      "Post analysis returned no data."
+  );
+}
+
+const analysis =
+  response.data;
+
+const record: AnalysisRecord = {
+  ...analysis,
+
+  analyzedAt:
+    new Date().toISOString(),
+};
+
+        /*
+         * Save analyzed post to persistent store.
+         */
+        savePost(record);
+        setSelectedPostUrl(record.post.url || url);
+
+        // Auto-compile report if enabled in workspace settings
+        if (settings.autoGenerateReports) {
+          try {
+            generateReportFromPost(record);
+          } catch (repErr) {
+            console.warn("Auto-report generation skipped:", repErr);
+          }
+        }
+
+        /*
+         * Clear URL after successful
+         * analysis.
+         */
+
+        setPostUrl("");
+
+        // Trigger custom in-app toast and email/SMS dispatch notification
+        notifyAnalysisComplete({
+          platform: analysis.post.platform || "Instagram",
+          url: analysis.post.url || url,
+          sentiment: analysis.aiAnalysis.sentiment.label,
+          sentimentScore: analysis.aiAnalysis.sentiment.score,
+          author: analysis.post.author.handle || analysis.post.author.name || "Creator",
+          summary: analysis.aiAnalysis.summary,
+        });
+
+        // Trigger confirmation that intelligence report was generated
+        if (settings.autoGenerateReports) {
+          notifyEvent({
+            title: "Report Generated!",
+            message: `Executive intelligence report generated for ${analysis.post.author.handle || analysis.post.author.name || "this post"}. Accessible in Reports.`,
+            type: "success",
+            link: "/reports",
+          });
+        }
+
+      } catch (err) {
+        console.error(
+          "Frontend post analysis error:",
+          err
+        );
+
+        const errorMsg =
+          err instanceof Error
+            ? err.message
+            : "Failed to analyze post.";
+
+        setError(errorMsg);
+
+        notifyEvent({
+          title: "Analysis Failed",
+          message: errorMsg,
+          type: "warning",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  /* =======================================================
+     ENTER KEY
+     ======================================================= */
+
+  const handleKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (
+      event.key ===
+      "Enter"
+    ) {
+      handleAnalyze();
+    }
+  };
+
+  /* =======================================================
+     OVERALL SENTIMENT
+     ======================================================= */
+
+  const sentimentStats =
+    useMemo(() => {
+      let positive = 0;
+      let negative = 0;
+      let neutral = 0;
+
+      records.forEach(
+        (record) => {
+          const sentiment =
+            record.aiAnalysis
+              .sentiment.label;
+
+          if (
+            sentiment ===
+            "POSITIVE"
+          ) {
+            positive++;
+          } else if (
+            sentiment ===
+            "NEGATIVE"
+          ) {
+            negative++;
+          } else {
+            neutral++;
+          }
+        }
+      );
+
+      return {
+        positive,
+        negative,
+        neutral,
+        total:
+          positive +
+          negative +
+          neutral,
+      };
+    }, [records]);
+
+  /* =======================================================
+     OVERALL ENGAGEMENT
+     ======================================================= */
+
+  const engagement =
+    useMemo(() => {
+      return records.reduce(
+        (total, record) => {
+          return (
+            total +
+            (record.post
+              .engagement.likes ??
+              0) +
+            (record.post
+              .engagement.comments ??
+              0) +
+            (record.post
+              .engagement.shares ??
+              0) +
+            (record.post
+              .engagement.views ??
+              0)
+          );
+        },
+        0
+      );
+    }, [records]);
+
+  /* =======================================================
+     AVERAGE CONFIDENCE
+     ======================================================= */
+
+  const averageConfidence =
+    useMemo(() => {
+      if (
+        records.length ===
+        0
+      ) {
+        return 0;
+      }
+
+      const total =
+        records.reduce(
+          (sum, record) =>
+            sum +
+            record.aiAnalysis
+              .confidence,
+          0
+        );
+
+      return (
+        total /
+        records.length
+      );
+    }, [records]);
+
+  const latest = useMemo(() => {
+    if (selectedPostUrl) {
+      const match = records.find(
+        (r) =>
+          r.post?.url === selectedPostUrl ||
+          r.source?.url === selectedPostUrl ||
+          (r.post?.url && selectedPostUrl && r.post.url.includes(selectedPostUrl)) ||
+          (selectedPostUrl && r.post?.url && selectedPostUrl.includes(r.post.url))
+      );
+      if (match) return match;
+    }
+    return records[0] || null;
+  }, [records, selectedPostUrl]);
+
+  const latestAudienceSentiment =
+    latest?.aiAnalysis?.audienceSentiment;
+
+  /*
+   * IMPORTANT:
+   * The backend sends commentsData inside the post object:
+   * response.data.post.commentsData
+   *
+   * Keep the top-level fallback so older responses still work.
+   */
+  const latestComments =
+    latest?.post?.commentsData ??
+    latest?.commentsData ??
+    [];
+
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  /* =======================================================
+     UI
+     ======================================================= */
+
+  return (
+    <div className="relative min-h-screen bg-[#fafafa] dark:bg-[#051F20] text-zinc-900 dark:text-zinc-100 selection:bg-[#8EB69B]/35 selection:text-[#051F20] dark:selection:bg-[#235347]/40 dark:selection:text-[#DAF1DE] transition-colors duration-150">
+      <GridSparkles />
+      <Sidebar
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+      />
+
+      <main className="relative z-10 lg:ml-[270px]">
+        <DashboardHeader onMenuClick={() => setMobileMenuOpen(true)} />
+
+        <div className="px-3 py-4 sm:px-6 sm:py-8 max-w-6xl mx-auto overflow-x-hidden">
+          <div className="space-y-6 sm:space-y-8">
+
+            {/* =================================================
+                HEADER
+                ================================================= */}
+
+            <header className="flex flex-col items-center text-center md:items-start md:text-left md:flex-row md:items-end md:justify-between gap-4 sm:gap-6 border-b border-zinc-200 dark:border-[#163832] pb-5 sm:pb-6">
+              <div className="flex flex-col items-center md:items-start text-center md:text-left">
+                <h1 className="font-display text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50 text-center md:text-left">
+                  Posts Analysis
+                </h1>
+
+                <p className="mt-1.5 sm:mt-2 max-w-2xl text-xs sm:text-base leading-relaxed text-zinc-600 dark:text-zinc-400 text-center md:text-left mx-auto md:mx-0">
+                  Understand what people are saying, identify sentiment, discover recurring narratives, and measure engagement across analyzed social posts.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center md:justify-end gap-2.5 w-full sm:w-auto">
+                <Link
+                  href="/settings"
+                  title="Configure intelligence engine and crisis rules in Settings"
+                  className="flex items-center justify-center gap-1.5 rounded-full border border-zinc-200 dark:border-[#163832] bg-white dark:bg-[#0B2B26] px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:border-[#8EB69B]/40 transition shadow-2xs group w-full sm:w-auto"
+                >
+                  <Cpu size={13} className="text-[#235347] dark:text-[#8EB69B] group-hover:rotate-12 transition-transform" />
+                  <span>Engine: <strong className="font-semibold text-zinc-900 dark:text-white capitalize">{settings.defaultAiModel.replace("gemini-", "").replace("claude-", "")}</strong></span>
+                  <span className="text-zinc-400 dark:text-zinc-600">•</span>
+                  <span className="text-[11px] text-zinc-500">Crisis &ge;{settings.crisisAlertThreshold}%</span>
+                </Link>
+              </div>
+            </header>
+
+            {/* =================================================
+                ANALYZE INPUT
+                ================================================= */}
+
+            <section className="rounded-2xl sm:rounded-3xl border border-zinc-200/80 dark:border-zinc-800/80 bg-white dark:bg-zinc-900/60 p-4 sm:p-7 shadow-xs">
+              {/* Prerequisite Alert: Profile & Data Source Check */}
+              {/* Prerequisite Alert: Profile & Data Source Check */}
+              {!activeProfile ? (
+                <div className="mb-6 rounded-2xl border border-amber-300 dark:border-amber-700/60 bg-amber-50/90 dark:bg-amber-950/40 p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-start sm:items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                      <AlertCircle size={20} />
+                    </div>
+                    <div>
+                      <h3 className="font-display text-sm sm:text-base font-bold text-amber-950 dark:text-amber-200">
+                        Monitoring Profile Required
+                      </h3>
+                      <p className="text-xs text-amber-800/90 dark:text-amber-300/80 mt-0.5 max-w-xl">
+                        To analyze posts and attribute intelligence to your organization, please select or create a profile first.
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    href="/create-profile"
+                    className="shrink-0 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs px-4 py-2.5 transition shadow-xs flex items-center gap-1.5"
+                  >
+                    <span>Create Profile &rarr;</span>
+                  </Link>
+                </div>
+              ) : missingPlatformPrompt && connectedPlatforms.length === 0 && !bannerDismissed ? (
+                <div className="relative mb-6 rounded-2xl border border-blue-400/60 dark:border-blue-600/60 bg-blue-50/90 dark:bg-blue-950/40 p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fadeIn">
+                  <button
+                    type="button"
+                    onClick={() => setBannerDismissed(true)}
+                    className="absolute top-3 right-3 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition p-1"
+                    title="Dismiss"
+                    aria-label="Dismiss notice"
+                  >
+                    <X size={15} />
+                  </button>
+                  <div className="flex items-start sm:items-center gap-3 pr-6">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200/90 dark:border-zinc-700/80 shadow-2xs p-1.5">
+                      <PlatformPngIcon platform={missingPlatformPrompt.platformName} size={24} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-display text-sm sm:text-base font-bold text-zinc-950 dark:text-white">
+                          Connect {missingPlatformPrompt.platformName} Account
+                        </h3>
+                        <span className="rounded-full bg-blue-100 dark:bg-blue-900/80 border border-blue-300 dark:border-blue-700 px-2 py-0.5 text-[10px] font-semibold text-blue-800 dark:text-blue-300">
+                          Recommended
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-1 max-w-xl">
+                        To enable automated stream syncing for profile <strong>"{activeProfile.name}"</strong>, connect your {missingPlatformPrompt.platformName} account in Data Sources. You can also analyze public posts below.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setBannerDismissed(true)}
+                      className="px-3 py-2 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition"
+                    >
+                      Dismiss
+                    </button>
+                    <Link
+                      href="/data-sources"
+                      className="shrink-0 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white font-semibold text-xs px-4 py-2.5 transition shadow-xs flex items-center gap-1.5"
+                    >
+                      <Link2 size={14} />
+                      <span>Connect {missingPlatformPrompt.platformName} &rarr;</span>
+                    </Link>
+                  </div>
+                </div>
+              ) : connectedPlatforms.length === 0 && !bannerDismissed ? (
+                <div className="relative mb-6 rounded-2xl border border-[#235347]/30 dark:border-[#8EB69B]/30 bg-[#DAF1DE]/40 dark:bg-[#235347]/20 p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setBannerDismissed(true)}
+                    className="absolute top-3 right-3 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition p-1"
+                    title="Dismiss"
+                    aria-label="Dismiss notice"
+                  >
+                    <X size={15} />
+                  </button>
+                  <div className="flex items-start sm:items-center gap-3 pr-6">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#235347]/20 dark:bg-[#8EB69B]/20 text-[#235347] dark:text-[#8EB69B]">
+                      <ShieldAlert size={20} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-display text-sm sm:text-base font-bold text-zinc-950 dark:text-white">
+                          Data Source Recommended for {activeProfile.name}
+                        </h3>
+                        <span className="rounded-full bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300">
+                          Setup
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-1 max-w-xl">
+                        To enable automated account syncing and audience metrics for profile <strong>{activeProfile.name}</strong>, connect your account in Data Sources. You can also analyze any public post URL directly.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setBannerDismissed(true)}
+                      className="px-3 py-2 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition"
+                    >
+                      Dismiss
+                    </button>
+                    <Link
+                      href="/data-sources"
+                      className="shrink-0 rounded-xl bg-[#235347] hover:bg-[#163832] text-[#DAF1DE] font-semibold text-xs px-4 py-2.5 transition shadow-xs flex items-center gap-1.5"
+                    >
+                      <Link2 size={14} />
+                      <span>Connect Data Source</span>
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="mb-4 sm:mb-5">
+                <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                  Analyze a public post
+                </h2>
+
+
+                <p className="mt-1 text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
+                  Paste a YouTube, X / Twitter, Facebook, Instagram, Telegram, or Reddit post URL. SocialInt will retrieve the post content and media, then perform deep sentiment and audience analysis.
+                </p>
+
+                {/* Supported platforms with real PNG icons */}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mr-1">
+                    Supported Networks:
+                  </span>
+                  {[
+                    { id: "instagram", name: "Instagram" },
+                    { id: "facebook", name: "Facebook" },
+                    { id: "youtube", name: "YouTube" },
+                    { id: "x", name: "X (Twitter)" },
+                    { id: "telegram", name: "Telegram" },
+                    { id: "reddit", name: "Reddit" },
+                  ].map((p) => (
+                    <div
+                      key={p.id}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200/90 dark:border-[#163832] bg-white/90 dark:bg-[#0B2B26]/80 px-2.5 py-1 text-xs font-medium text-zinc-800 dark:text-zinc-200 shadow-2xs transition hover:border-[#235347] dark:hover:border-[#8EB69B] hover:scale-102"
+                    >
+                      <PlatformPngIcon platform={p.id} size={15} />
+                      <span>{p.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 lg:flex-row">
+                <div className="relative flex-1">
+                  <ExternalLink className="absolute left-3.5 sm:left-4 top-1/2 h-4 sm:h-5 w-4 sm:w-5 -translate-y-1/2 text-zinc-400" />
+
+                  <input
+                    id="analyze-post-input"
+                    value={postUrl}
+                    onChange={(event) =>
+                      handleUrlChange(event.target.value)
+                    }
+                    onKeyDown={handleKeyDown}
+                    disabled={loading}
+                    placeholder="https://youtube.com/... or https://x.com/... or https://t.me/... or https://reddit.com/r/..."
+                    className="h-11 sm:h-14 w-full rounded-xl border border-zinc-200 dark:border-[#163832] bg-zinc-50/50 dark:bg-[#0B2B26]/60 pl-10 sm:pl-12 pr-10 sm:pr-12 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 outline-none transition placeholder:text-zinc-400 focus:border-[#235347] dark:focus:border-[#8EB69B] focus:bg-white dark:focus:bg-[#0B2B26] focus:ring-2 focus:ring-[#235347]/20 dark:focus:ring-[#8EB69B]/20 disabled:cursor-not-allowed disabled:opacity-60 shadow-xs"
+                  />
+                  {postUrl && !loading && (
+                    <button
+                      type="button"
+                      onClick={() => setPostUrl("")}
+                      className="absolute right-3.5 sm:right-4 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition cursor-pointer"
+                      title="Clear URL"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  onClick={handleAnalyze}
+                  disabled={loading}
+                  className="flex h-11 sm:h-14 w-full lg:w-auto items-center justify-center gap-2 rounded-xl bg-[#235347] px-6 sm:px-8 text-xs sm:text-sm font-semibold text-[#DAF1DE] shadow-xs transition hover:bg-[#163832] disabled:cursor-not-allowed disabled:opacity-50 shrink-0"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 sm:h-5 w-4 sm:w-5 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <BarChart2 className="h-4 sm:h-5 w-4 sm:w-5" />
+                      Analyze Post
+                    </>
+                  )}
+                </button>
+              </div>
+
+          {/* Loading message */}
+
+          {loading && (
+            <div className="mt-5 flex items-center gap-3 rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-sm text-blue-300">
+              <Loader2 className="h-4 w-4 animate-spin" />
+
+              <span>
+                Fetching post data →
+                downloading media →
+                running sentiment & engagement analysis...
+              </span>
+            </div>
+          )}
+
+          {/* Error */}
+
+          {error && (
+            <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-300">
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+
+              <span>
+                {error}
+              </span>
+            </div>
+          )}
+        </section>
+
+        {/* =================================================
+            OVERVIEW CARDS
+            ================================================= */}
+
+        <section className="mb-6 sm:mb-10 grid gap-2.5 sm:gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+
+          <StatCard
+            icon={
+              <Search className="h-5 w-5" />
+            }
+            title="Posts analyzed"
+            value={formatNumber(
+              records.length
+            )}
+            description="This session"
+            iconClass="text-blue-400"
+          />
+
+          <StatCard
+            icon={
+              <ThumbsUp className="h-5 w-5" />
+            }
+            title="Positive posts"
+            value={
+              sentimentStats.total
+                ? `${(
+                    (sentimentStats.positive /
+                      sentimentStats.total) *
+                    100
+                  ).toFixed(1)}%`
+                : "0%"
+            }
+            description={`${sentimentStats.positive} posts`}
+            iconClass="text-green-400"
+          />
+
+          <StatCard
+            icon={
+              <ThumbsDown className="h-5 w-5" />
+            }
+            title="Negative posts"
+            value={
+              sentimentStats.total
+                ? `${(
+                    (sentimentStats.negative /
+                      sentimentStats.total) *
+                    100
+                  ).toFixed(1)}%`
+                : "0%"
+            }
+            description={`${sentimentStats.negative} posts`}
+            iconClass="text-red-400"
+          />
+
+          <StatCard
+            icon={
+              <Zap className="h-5 w-5" />
+            }
+            title="Total engagement"
+            value={formatNumber(
+              engagement
+            )}
+            description="Likes + comments + shares + views"
+            iconClass="text-yellow-400"
+          />
+
+          <StatCard
+            icon={
+              <MessageCircle className="h-5 w-5" />
+            }
+            title="Comments captured"
+            value={formatNumber(
+              latestComments.length
+            )}
+            description="Recent comments from Apify"
+            iconClass="text-purple-400"
+          />
+        </section>
+
+        {/* =================================================
+            CHARTS
+            ================================================= */}
+
+        <section className="mb-8 sm:mb-10 grid gap-4 sm:gap-6 grid-cols-1 xl:grid-cols-2">
+
+          {/* SENTIMENT */}
+
+          <div className="card-hanging rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 bg-white dark:bg-zinc-900/60 p-4 sm:p-6 shadow-xs">
+
+            <div className="mb-6 flex items-start justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                  Sentiment distribution
+                </h2>
+
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  Overall sentiment across
+                  analyzed URLs.
+                </p>
+              </div>
+
+              <BarChart2 className="h-6 w-6 text-[#235347] dark:text-[#8EB69B]" />
+            </div>
+
+            <SentimentPieChart
+              positive={
+                sentimentStats.positive
+              }
+              negative={
+                sentimentStats.negative
+              }
+              neutral={
+                sentimentStats.neutral
+              }
+            />
+          </div>
+
+          {/* ENGAGEMENT */}
+
+          <div className="card-hanging rounded-2xl border border-zinc-200/80 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 p-6 shadow-xs">
+
+            <div className="mb-6 flex items-start justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                  Engagement trend
+                </h2>
+
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  Engagement metrics from
+                  analyzed posts.
+                </p>
+              </div>
+
+              <TrendingUp className="h-6 w-6 text-green-400" />
+            </div>
+
+            <EngagementGraph
+              records={records}
+            />
+          </div>
+        </section>
+
+        {/* =================================================
+            AUDIENCE INTELLIGENCE
+            ================================================= */}
+
+        {latest && (
+          <section className="mb-10 grid gap-6 xl:grid-cols-2">
+            {/* AUDIENCE SENTIMENT */}
+            <div className="card-hanging rounded-2xl border border-zinc-200/80 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 p-6 shadow-xs">
+              <div className="mb-6 flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                    Audience sentiment
+                  </h2>
+                  <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                    Sentiment inferred from real audience comments returned
+                    by the data source.
+                  </p>
+                </div>
+
+                <MessageCircle className="h-6 w-6 text-purple-400" />
+              </div>
+
+              <AudienceSentimentChart
+                sentiment={latestAudienceSentiment}
+                platform={latest.post.platform}
+              />
+            </div>
+
+            {/* COMMENTS */}
+            <div className="card-hanging rounded-2xl border border-zinc-200/80 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 p-6 shadow-xs">
+              <div className="mb-6 flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                    Comment intelligence
+                  </h2>
+                  <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                    Recent comments, authors and comment engagement.
+                  </p>
+                </div>
+
+                <Heart className="h-6 w-6 text-red-400" />
+              </div>
+
+              <CommentInsights
+                comments={latestComments}
+                platform={latest.post.platform}
+              />
+            </div>
+          </section>
+        )}
+
+        {/* =================================================
+            LATEST POST
+            ================================================= */}
+
+        {latest && (
+          <section id="post-analysis-detail" className="mb-10 rounded-2xl border border-[#235347]/30 dark:border-[#163832] bg-[#DAF1DE]/20 dark:bg-[#0B2B26]/80 p-6 shadow-xs">
+
+            <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-sm text-[#235347] dark:text-[#8EB69B]">
+                  <Activity className="h-4 w-4" />
+
+                  Latest analysis
+                </div>
+
+                <h2 className="text-lg sm:text-2xl font-bold text-zinc-950 dark:text-white flex flex-wrap items-center gap-2 sm:gap-3">
+                  <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-white dark:bg-[#163832] border border-zinc-200/90 dark:border-[#163832] shadow-2xs p-1.5 shrink-0">
+                    <PlatformPngIcon platform={latest.post.platform} size={22} />
+                  </div>
+                  <span>
+                    {latest.post.platform === "FACEBOOK"
+                      ? "Facebook Post Intelligence"
+                      : latest.post.platform === "X"
+                      ? "X / Twitter Post Intelligence"
+                      : latest.post.platform === "YOUTUBE"
+                      ? "YouTube Video Intelligence"
+                      : latest.post.platform === "TELEGRAM"
+                      ? "Telegram Channel Intelligence"
+                      : latest.post.platform === "REDDIT"
+                      ? "Reddit Community Intelligence"
+                      : latest.post.platform === "INSTAGRAM"
+                      ? "Instagram Post Intelligence"
+                      : `${latest.post.platform || "Social"} Post Intelligence`}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
+                      latest.post.platform === "FACEBOOK"
+                        ? "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800"
+                        : latest.post.platform === "X"
+                        ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700"
+                        : latest.post.platform === "YOUTUBE"
+                        ? "bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800"
+                        : latest.post.platform === "TELEGRAM"
+                        ? "bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800"
+                        : latest.post.platform === "REDDIT"
+                        ? "bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800"
+                        : "bg-pink-50 dark:bg-pink-950/60 text-pink-600 dark:text-pink-400 border-pink-200 dark:border-pink-800"
+                    }`}
+                  >
+                    <PlatformPngIcon platform={latest.post.platform} size={14} />
+                    <span>
+                      {latest.post.platform === "X"
+                        ? "X / Twitter"
+                        : latest.post.platform === "TELEGRAM"
+                        ? "Telegram"
+                        : latest.post.platform === "REDDIT"
+                        ? "Reddit"
+                        : latest.post.platform || "Post"}
+                    </span>
+                  </span>
+                </h2>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <Link
+                  href={`/reports?url=${encodeURIComponent(latest.post.url || latest.source?.url || "")}`}
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl bg-[#235347] px-4 py-2 text-xs sm:text-sm font-semibold text-[#DAF1DE] shadow-xs transition hover:bg-[#163832]"
+                >
+                  <FileText className="h-4 w-4" />
+                  <span>View Generated Report</span>
+                </Link>
+
+                <a
+                  href={
+                    latest.post.url
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 dark:border-[#163832] bg-white dark:bg-[#163832]/40 px-4 py-2 text-xs sm:text-sm text-zinc-700 dark:text-zinc-300 transition hover:bg-zinc-100 dark:hover:bg-[#163832]/70"
+                >
+                  <span>Open post</span>
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+
+              {/* MEDIA */}
+
+              <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-[#163832] bg-zinc-100 dark:bg-black/30">
+                <SocialPostImage
+                  src={latest.post.media?.url}
+                  alt={latest.post.author?.name || `${latest.post.platform} post`}
+                  platform={latest.post.platform}
+                  isVideo={latest.post.postType === "VIDEO"}
+                  className="aspect-square w-full object-cover"
+                />
+              </div>
+
+              {/* POST DATA */}
+
+              <div className="space-y-5">
+
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#235347]/15 dark:bg-[#8EB69B]/20 text-[#235347] dark:text-[#8EB69B]">
+                    <User className="h-5 w-5" />
+                  </div>
+
+                  <div>
+                    <p className="font-semibold text-zinc-950 dark:text-white">
+                      {latest.post.author
+                        ?.name ||
+                        "Unknown author"}
+                    </p>
+
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                      @
+                      {latest.post.author
+                        ?.handle ||
+                        "unknown"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+
+                  <Metric
+                    icon={
+                      <Heart className="h-4 w-4 text-red-400" />
+                    }
+                    label="Likes"
+                    value={formatNumber(
+                      latest.post
+                        .engagement
+                        .likes
+                    )}
+                  />
+
+                  <Metric
+                    icon={
+                      <MessageCircle className="h-4 w-4 text-blue-400" />
+                    }
+                    label="Comments"
+                    value={formatNumber(
+                      latest.post
+                        .engagement
+                        .comments
+                    )}
+                  />
+
+                  <Metric
+                    icon={
+                      <Zap className="h-4 w-4 text-yellow-400" />
+                    }
+                    label="Shares"
+                    value={formatNumber(
+                      latest.post
+                        .engagement
+                        .shares
+                    )}
+                  />
+
+                  <Metric
+                    icon={
+                      <Play className="h-4 w-4 text-green-400" />
+                    }
+                    label="Views"
+                    value={formatNumber(
+                      latest.post
+                        .engagement
+                        .views
+                    )}
+                  />
+                </div>
+
+                <div className="rounded-xl border border-zinc-200/80 dark:border-white/5 bg-white dark:bg-black/20 p-5 shadow-xs">
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-zinc-800 dark:text-zinc-300">
+                    {latest.post
+                      .content ||
+                      latest.post
+                        .supplementalText ||
+                      "No text content available."}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="rounded-full border border-zinc-200 dark:border-white/10 bg-white/60 dark:bg-transparent px-3 py-1 text-zinc-700 dark:text-zinc-300">
+                    {latest.post.postType}
+                  </span>
+
+                  {latestAudienceSentiment &&
+                    latestAudienceSentiment.dominant !== "UNAVAILABLE" && (
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-mono font-medium ${
+                          latestAudienceSentiment.dominant === "POSITIVE"
+                            ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+                            : latestAudienceSentiment.dominant === "NEGATIVE"
+                              ? "border-rose-500/25 bg-rose-500/10 text-rose-800 dark:text-rose-300"
+                              : "border-zinc-300/80 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+                        }`}
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                            latestAudienceSentiment.dominant === "POSITIVE"
+                              ? "bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.55)]"
+                              : latestAudienceSentiment.dominant === "NEGATIVE"
+                                ? "bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.55)]"
+                                : "bg-zinc-400"
+                          }`}
+                        />
+                        Audience: {latestAudienceSentiment.dominant}
+                      </span>
+                    )}
+
+                  <span className="rounded-full border border-zinc-200 dark:border-white/10 bg-white/60 dark:bg-transparent px-3 py-1 text-zinc-700 dark:text-zinc-300">
+                    {latestComments.length} comments analyzed
+                  </span>
+
+                  <span className="flex items-center gap-1">
+                    <Clock3 className="h-3.5 w-3.5 text-zinc-400" />
+
+                    {formatDate(
+                      latest.post
+                        .publishedAt
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* =================================================
+            ANALYSIS & METRICS
+            ================================================= */}
+
+        {latest && (
+          <section className="mb-10 grid gap-6 xl:grid-cols-2">
+
+            {/* SENTIMENT */}
+
+            <div className="rounded-2xl border border-zinc-200/80 dark:border-white/10 bg-white dark:bg-white/[0.025] p-6 shadow-xs">
+
+              <SectionTitle
+                icon={
+                  <Activity className="h-5 w-5" />
+                }
+                title="Sentiment breakdown"
+              />
+
+              <div className="mt-6 flex items-center gap-5">
+
+                <div
+                  className={`flex h-20 w-20 items-center justify-center rounded-2xl border ${
+                    latest.aiAnalysis
+                      .sentiment
+                      .label ===
+                    "POSITIVE"
+                      ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : latest.aiAnalysis
+                          .sentiment
+                          .label ===
+                        "NEGATIVE"
+                      ? "border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                      : "border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400"
+                  }`}
+                >
+                  {latest.aiAnalysis
+                    .sentiment
+                    .label ===
+                  "POSITIVE" ? (
+                    <ThumbsUp className="h-8 w-8" />
+                  ) : latest.aiAnalysis
+                      .sentiment
+                      .label ===
+                    "NEGATIVE" ? (
+                    <ThumbsDown className="h-8 w-8" />
+                  ) : (
+                    <Minus className="h-8 w-8" />
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-3xl font-bold text-zinc-950 dark:text-white">
+                    {
+                      latest
+                        .aiAnalysis
+                        .sentiment
+                        .label
+                    }
+                  </p>
+
+                  <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                    Score:{" "}
+                    {(
+                      latest
+                        .aiAnalysis
+                        .sentiment
+                        .score *
+                      100
+                    ).toFixed(0)}
+                    %
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-6 text-sm leading-7 text-zinc-600 dark:text-zinc-400">
+                {
+                  latest.aiAnalysis
+                    .sentiment
+                    .explanation
+                }
+              </p>
+            </div>
+
+            {/* CONFIDENCE */}
+
+            <div className="rounded-2xl border border-zinc-200/80 dark:border-white/10 bg-white dark:bg-white/[0.025] p-6 shadow-xs">
+
+              <SectionTitle
+                icon={
+                  <ShieldAlert className="h-5 w-5" />
+                }
+                title="Confidence score"
+              />
+
+              <div className="mt-6">
+
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                    Analysis confidence
+                  </span>
+
+                  <span className="font-semibold text-zinc-950 dark:text-white">
+                    {(
+                      latest
+                        .aiAnalysis
+                        .confidence *
+                      100
+                    ).toFixed(1)}
+                    %
+                  </span>
+                </div>
+
+                <div className="h-3 overflow-hidden rounded-full bg-zinc-200 dark:bg-white/5">
+                  <div
+                    className="h-full rounded-full bg-[#235347] dark:bg-[#8EB69B] transition-all"
+                    style={{
+                      width: `${clamp(
+                        latest
+                          .aiAnalysis
+                          .confidence *
+                          100
+                      )}%`,
+                    }}
+                  />
+                </div>
+
+                <p className="mt-5 text-sm text-zinc-500 dark:text-zinc-400">
+                  Average confidence across
+                  this session:{" "}
+                  {(
+                    averageConfidence *
+                    100
+                  ).toFixed(1)}
+                  %
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* =================================================
+            EMOTIONS + TOPICS
+            ================================================= */}
+
+        {latest && (
+          <section className="mb-10 grid gap-6 xl:grid-cols-2">
+
+            {/* EMOTIONS */}
+
+            <div className="rounded-2xl border border-zinc-200/80 dark:border-white/10 bg-white dark:bg-white/[0.025] p-6 shadow-xs">
+
+              <SectionTitle
+                icon={
+                  <Activity className="h-5 w-5" />
+                }
+                title="Detected emotions"
+              />
+
+              <div className="mt-6 space-y-4">
+
+                {latest.aiAnalysis
+                  .emotions
+                  .length === 0 ? (
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                    No emotions detected.
+                  </p>
+                ) : (
+                  latest.aiAnalysis.emotions.map(
+                    (emotion) => (
+                      <div
+                        key={
+                          emotion.emotion
+                        }
+                      >
+                        <div className="mb-2 flex justify-between text-sm">
+                          <span className="text-zinc-800 dark:text-zinc-300 font-medium capitalize">
+                            {
+                              emotion.emotion
+                            }
+                          </span>
+
+                          <span className="text-zinc-500 dark:text-zinc-400 font-mono">
+                            {(
+                              emotion.score *
+                              100
+                            ).toFixed(0)}
+                            %
+                          </span>
+                        </div>
+
+                        <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-white/5">
+                          <div
+                            className="h-full rounded-full bg-purple-500"
+                            style={{
+                              width: `${clamp(
+                                emotion.score *
+                                  100
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  )
+                )}
+              </div>
+            </div>
+
+            {/* TOPICS */}
+
+            <div className="rounded-2xl border border-zinc-200/80 dark:border-white/10 bg-white dark:bg-white/[0.025] p-6 shadow-xs">
+
+              <SectionTitle
+                icon={
+                  <TrendingUp className="h-5 w-5" />
+                }
+                title="Detected topics"
+              />
+
+              <div className="mt-6 flex flex-wrap gap-3">
+
+                {latest.aiAnalysis
+                  .topics
+                  .length === 0 ? (
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                    No topics detected.
+                  </p>
+                ) : (
+                  latest.aiAnalysis.topics.map(
+                    (topic) => (
+                      <span
+                        key={topic}
+                        className="rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300"
+                      >
+                        {topic}
+                      </span>
+                    )
+                  )
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* =================================================
+            INTENT + TOXICITY
+            ================================================= */}
+
+        {latest && (
+          <section className="mb-10 grid gap-6 xl:grid-cols-2">
+
+            <div className="rounded-2xl border border-zinc-200/80 dark:border-white/10 bg-white dark:bg-white/[0.025] p-6 shadow-xs">
+
+              <SectionTitle
+                icon={
+                  <Zap className="h-5 w-5" />
+                }
+                title="Content intent"
+              />
+
+              <div className="mt-5">
+                <span className="inline-flex rounded-full border border-purple-500/30 bg-purple-500/10 px-4 py-2 text-sm font-semibold text-purple-700 dark:text-purple-300">
+                  {
+                    latest.aiAnalysis
+                      .intent
+                      .label
+                  }
+                </span>
+
+                <p className="mt-5 text-sm leading-7 text-zinc-600 dark:text-zinc-400">
+                  {
+                    latest.aiAnalysis
+                      .intent
+                      .explanation
+                  }
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-200/80 dark:border-white/10 bg-white dark:bg-white/[0.025] p-6 shadow-xs">
+
+              <SectionTitle
+                icon={
+                  <ShieldAlert className="h-5 w-5" />
+                }
+                title="Toxicity & safety"
+              />
+
+              <div className="mt-5 flex items-center gap-4">
+
+                <div
+                  className={`flex h-14 w-14 items-center justify-center rounded-xl border ${
+                    latest.aiAnalysis
+                      .toxicity
+                      .detected
+                      ? "border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                      : "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  }`}
+                >
+                  {latest.aiAnalysis
+                    .toxicity
+                    .detected ? (
+                    <AlertCircle className="h-7 w-7" />
+                  ) : (
+                    <CheckCircle2 className="h-7 w-7" />
+                  )}
+                </div>
+
+                <div>
+                  <p className="font-semibold text-zinc-950 dark:text-white">
+                    {latest.aiAnalysis
+                      .toxicity
+                      .detected
+                      ? "Potential toxicity detected"
+                      : "No toxicity detected"}
+                  </p>
+
+                  <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                    Score:{" "}
+                    {(
+                      latest
+                        .aiAnalysis
+                        .toxicity
+                        .score *
+                      100
+                    ).toFixed(0)}
+                    %
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-5 text-sm leading-7 text-zinc-600 dark:text-zinc-400">
+                {
+                  latest.aiAnalysis
+                    .toxicity
+                    .explanation
+                }
+              </p>
+            </div>
+          </section>
+        )}
+
+        {/* =================================================
+            SUMMARY
+            ================================================= */}
+
+        {latest && (
+          <section className="mb-10 rounded-2xl border border-zinc-200/80 dark:border-white/10 bg-white dark:bg-white/[0.025] p-6 shadow-xs">
+
+            <SectionTitle
+              icon={
+                <FileText className="h-5 w-5" />
+              }
+              title="Executive summary"
+            />
+
+            <p className="mt-6 max-w-5xl text-base leading-8 text-zinc-800 dark:text-zinc-300">
+              {
+                latest.aiAnalysis
+                  .summary
+              }
+            </p>
+          </section>
+        )}
+
+        {/* =================================================
+            KEY INSIGHTS + RECOMMENDATIONS
+            ================================================= */}
+
+        {latest && (
+          <section className="mb-10 grid gap-6 xl:grid-cols-2">
+
+            {/* KEY INSIGHTS */}
+
+            <div className="rounded-2xl border border-zinc-200/80 dark:border-white/10 bg-white dark:bg-white/[0.025] p-6 shadow-xs">
+
+              <SectionTitle
+                icon={
+                  <TrendingUp className="h-5 w-5" />
+                }
+                title="Key insights"
+              />
+
+              <div className="mt-6 space-y-4">
+
+                {latest.aiAnalysis
+                  .keyInsights
+                  .map(
+                    (
+                      insight,
+                      index
+                    ) => (
+                      <div
+                        key={index}
+                        className="flex gap-3 rounded-xl border border-zinc-200/80 dark:border-white/5 bg-zinc-50/80 dark:bg-black/20 p-4"
+                      >
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#235347]/15 dark:bg-[#8EB69B]/20 text-xs font-bold text-[#235347] dark:text-[#8EB69B]">
+                          {index +
+                            1}
+                        </span>
+
+                        <p className="text-sm leading-6 text-zinc-800 dark:text-zinc-300">
+                          {insight}
+                        </p>
+                      </div>
+                    )
+                  )}
+              </div>
+            </div>
+
+            {/* RECOMMENDATIONS */}
+
+            <div className="rounded-2xl border border-zinc-200/80 dark:border-white/10 bg-white dark:bg-white/[0.025] p-6 shadow-xs">
+
+              <SectionTitle
+                icon={
+                  <ArrowUpRight className="h-5 w-5" />
+                }
+                title="Recommendations"
+              />
+
+              <div className="mt-6 space-y-4">
+
+                {latest.aiAnalysis
+                  .recommendations
+                  .map(
+                    (
+                      recommendation,
+                      index
+                    ) => (
+                      <div
+                        key={index}
+                        className="flex gap-3 rounded-xl border border-zinc-200/80 dark:border-white/5 bg-zinc-50/80 dark:bg-black/20 p-4"
+                      >
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-green-400" />
+
+                        <p className="text-sm leading-6 text-zinc-800 dark:text-zinc-300">
+                          {
+                            recommendation
+                          }
+                        </p>
+                      </div>
+                    )
+                  )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* =================================================
+            ALL ANALYZED POSTS
+            ================================================= */}
+
+        {records.length > 0 && (
+          <section className="mb-10">
+
+            <div className="mb-6 flex items-end justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold text-zinc-950 dark:text-white">
+                  Analyzed posts
+                </h2>
+
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  Every URL analyzed during
+                  this session.
+                </p>
+              </div>
+
+              <span className="rounded-full border border-zinc-200 dark:border-white/10 bg-white dark:bg-transparent px-3 py-1 text-xs text-zinc-600 dark:text-zinc-400">
+                {records.length}{" "}
+                posts
+              </span>
+            </div>
+
+            <div className="space-y-4">
+
+              {records.map(
+                (
+                  record,
+                  index
+                ) => (
+                  <div
+                    key={`${record.source.url}-${index}`}
+                    className="rounded-2xl border border-zinc-200/80 dark:border-white/10 bg-white dark:bg-white/[0.025] p-5 shadow-xs transition hover:border-zinc-300 dark:hover:border-white/20"
+                  >
+                    <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-center">
+
+                      {/* THUMBNAIL */}
+
+                      <div className="flex items-start gap-3 sm:gap-4 w-full lg:w-auto">
+                        <div className="h-16 w-16 sm:h-24 sm:w-24 shrink-0 overflow-hidden rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-100 dark:bg-black/30">
+                          <SocialPostImage
+                            src={record.post.media?.url}
+                            alt="Post"
+                            platform={record.post.platform}
+                            isVideo={record.post.postType === "VIDEO"}
+                            className="h-full w-full object-cover"
+                            aspectRatio="h-16 w-16 sm:h-24 sm:w-24"
+                          />
+                        </div>
+
+                        {/* Mobile visible author header */}
+                        <div className="min-w-0 flex-1 lg:hidden">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-semibold text-xs sm:text-sm text-zinc-950 dark:text-white truncate">
+                              {record.post.author?.name || "Unknown"}
+                            </span>
+                            <span className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                              @{record.post.author?.handle || "unknown"}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                            <span className="inline-flex items-center gap-1 rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/70 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-700 dark:text-zinc-300">
+                              <PlatformPngIcon platform={record.post.platform} size={12} />
+                              <span>{record.post.platform || "Post"}</span>
+                            </span>
+                            <SentimentBadge sentiment={record.aiAnalysis.sentiment.label} />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* CONTENT */}
+
+                      <div className="min-w-0 flex-1">
+
+                        <div className="hidden lg:flex flex-wrap items-center gap-3">
+
+                          <span className="font-semibold text-zinc-950 dark:text-white">
+                            {record
+                              .post
+                              .author
+                              ?.name ||
+                              "Unknown"}
+                          </span>
+
+                          <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                            @
+                            {record
+                              .post
+                              .author
+                              ?.handle ||
+                              "unknown"}
+                          </span>
+
+                          <span className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/70 px-2 py-0.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                            <PlatformPngIcon platform={record.post.platform} size={14} />
+                            <span>{record.post.platform || "Post"}</span>
+                          </span>
+
+                          <SentimentBadge
+                            sentiment={
+                              record
+                                .aiAnalysis
+                                .sentiment
+                                .label
+                            }
+                          />
+                        </div>
+
+                        <p className="mt-1 lg:mt-3 line-clamp-2 text-xs sm:text-sm leading-relaxed text-zinc-700 dark:text-zinc-400">
+                          {record
+                            .post
+                            .content ||
+                            record
+                              .post
+                              .supplementalText ||
+                            "No text available."}
+                        </p>
+
+                        <div className="mt-2.5 sm:mt-3 flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-zinc-600 dark:text-zinc-400">
+                          <span className="flex items-center gap-1">
+                            <Heart size={13} className="text-rose-500 shrink-0" />
+                            {formatNumber(
+                              record
+                                .post
+                                .engagement
+                                .likes
+                            )}
+                          </span>
+
+                          <span className="flex items-center gap-1">
+                            <MessageCircle size={13} className="text-blue-500 shrink-0" />
+                            {formatNumber(
+                              record
+                                .post
+                                .engagement
+                                .comments
+                            )}
+                          </span>
+
+                          <span className="flex items-center gap-1">
+                            <Calendar size={13} className="text-zinc-400 shrink-0" />
+                            {formatDate(
+                              record
+                                .post
+                                .publishedAt
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* ACTIONS */}
+                      <div className="flex flex-wrap items-center gap-2 pt-2.5 lg:pt-0 border-t lg:border-t-0 border-zinc-100 dark:border-zinc-800 w-full lg:w-auto">
+                        <Link
+                          href={`/reports?url=${encodeURIComponent(record.post?.url || record.source?.url || "")}`}
+                          className="flex-1 lg:flex-initial flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#235347] px-3 text-xs font-semibold text-[#DAF1DE] hover:bg-[#163832] transition shadow-2xs"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          <span>View Report</span>
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPostUrl(record.post?.url || record.source?.url || "");
+                            const el = document.getElementById("post-analysis-detail");
+                            if (el) el.scrollIntoView({ behavior: "smooth" });
+                          }}
+                          className="flex h-9 items-center justify-center gap-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Focus
+                        </button>
+
+                        <a
+                          href={record.post?.url || record.source?.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex h-9 items-center justify-center gap-1.5 rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-zinc-800/80 px-3 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition"
+                        >
+                          <span>Open</span>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={() => deletePost(record.post?.url || record.source?.url || "")}
+                          title="Delete saved post"
+                          className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 dark:border-white/10 text-zinc-400 hover:text-rose-600 hover:border-rose-200 dark:hover:border-rose-900/40 transition"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* =================================================
+            EMPTY STATE
+            ================================================= */}
+
+        {records.length ===
+          0 &&
+          !loading && (
+            <section className="flex min-h-[420px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-200 dark:border-[#163832] bg-white/50 dark:bg-[#0B2B26]/30 px-6 text-center">
+
+              <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl border border-[#235347]/20 dark:border-[#8EB69B]/30 bg-[#DAF1DE] dark:bg-[#235347]/40 text-[#235347] dark:text-[#8EB69B]">
+                <Search className="h-9 w-9" />
+              </div>
+
+              <h2 className="text-2xl font-semibold text-zinc-950 dark:text-white">
+                Start analyzing posts
+              </h2>
+
+              <p className="mt-3 max-w-xl text-sm leading-7 text-zinc-600 dark:text-zinc-400">
+                Paste a public social post URL above (YouTube, X / Twitter, Facebook, Instagram, Telegram, or Reddit). The real post data and comments will be retrieved, analyzed, and displayed here.
+              </p>
+            </section>
+          )}
+
+        {/* =================================================
+            FOOTER
+            ================================================= */}
+
+            <footer className="border-t border-zinc-200 dark:border-[#163832] pt-8 text-center text-xs text-zinc-500 dark:text-zinc-400">
+              SocialInt analyzes publicly available social content and platform-authorized data.
+            </footer>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+/* =========================================================
+   STAT CARD
+   ========================================================= */
+
+function StatCard({
+  icon,
+  title,
+  value,
+  description,
+  iconClass,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  value: string;
+  description: string;
+  iconClass: string;
+}) {
+  return (
+    <div className="card-hanging rounded-2xl border border-zinc-200/80 dark:border-[#163832] bg-white dark:bg-[#0B2B26]/80 p-3.5 sm:p-6 shadow-xs min-w-0">
+      <div className="mb-3 sm:mb-6 flex items-start justify-between gap-1.5">
+        <div
+          className={`flex h-8 w-8 sm:h-11 sm:w-11 items-center justify-center rounded-lg sm:rounded-xl border border-[#235347]/20 dark:border-[#8EB69B]/30 bg-[#DAF1DE] dark:bg-[#235347]/40 text-[#235347] dark:text-[#8EB69B] shrink-0 ${iconClass}`}
+        >
+          {icon}
+        </div>
+
+        <ArrowUpRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+      </div>
+
+      <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 truncate">
+        {title}
+      </p>
+
+      <p className="mt-0.5 sm:mt-1 text-lg sm:text-3xl font-extrabold text-zinc-950 dark:text-white truncate">
+        {value}
+      </p>
+
+      <p className="mt-1 text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400 truncate">
+        {description}
+      </p>
+    </div>
+  );
+}
+
+/* =========================================================
+   SECTION TITLE
+   ========================================================= */
+
+function SectionTitle({
+  icon,
+  title,
+}: {
+  icon: React.ReactNode;
+  title: string;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#235347]/20 dark:border-[#8EB69B]/30 bg-[#DAF1DE] dark:bg-[#235347]/40 text-[#235347] dark:text-[#8EB69B]">
+        {icon}
+      </div>
+
+      <h2 className="text-xl font-bold text-zinc-950 dark:text-white">
+        {title}
+      </h2>
+    </div>
+  );
+}
+
+/* =========================================================
+   METRIC
+   ========================================================= */
+
+function Metric({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-800/60 px-4 py-3">
+      {icon}
+
+      <div>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          {label}
+        </p>
+
+        <p className="font-bold text-zinc-900 dark:text-zinc-100">
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   SENTIMENT BADGE
+   ========================================================= */
+
+function SentimentBadge({
+  sentiment,
+}: {
+  sentiment:
+    | "POSITIVE"
+    | "NEGATIVE"
+    | "NEUTRAL";
+}) {
+  const isPositive = sentiment === "POSITIVE";
+  const isNegative = sentiment === "NEGATIVE";
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-mono font-medium tracking-wide ${
+        isPositive
+          ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+          : isNegative
+          ? "border-rose-500/25 bg-rose-500/10 text-rose-800 dark:text-rose-300"
+          : "border-zinc-300/80 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+      }`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+          isPositive
+            ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.55)]"
+            : isNegative
+            ? "bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.55)]"
+            : "bg-zinc-400"
+        }`}
+      />
+      {isPositive ? "Positive" : isNegative ? "Negative" : "Neutral"}
+    </span>
+  );
+}
+
+/* =========================================================
+   SOCIAL POST IMAGE COMPONENT
+   ========================================================= */
+
+function SocialPostImage({
+  src,
+  alt,
+  platform,
+  isVideo = false,
+  className = "",
+  aspectRatio = "aspect-square",
+}: {
+  src?: string | null;
+  alt?: string;
+  platform?: string;
+  isVideo?: boolean;
+  className?: string;
+  aspectRatio?: string;
+}) {
+  const cleanSrc = src ? src.replace(/&amp;/g, "&") : null;
+  const [imgSrc, setImgSrc] = useState<string | null>(cleanSrc || null);
+  const [hasTriedProxy, setHasTriedProxy] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  useEffect(() => {
+    const updated = src ? src.replace(/&amp;/g, "&") : null;
+    if (!updated) {
+      setImgSrc(null);
+      setHasTriedProxy(false);
+      setLoadFailed(false);
+      return;
+    }
+
+    const apiUrl = API_URL;
+    // Facebook lookaside and fbcdn URLs have strict anti-hotlinking / crawler protections
+    if (
+      updated.includes("lookaside.fbsbx.com") ||
+      (platform?.toUpperCase() === "FACEBOOK" && !updated.includes("/api/post-analysis/proxy-image"))
+    ) {
+      setImgSrc(`${apiUrl}/api/post-analysis/proxy-image?url=${encodeURIComponent(updated)}`);
+      setHasTriedProxy(true);
+    } else {
+      setImgSrc(updated);
+      setHasTriedProxy(false);
+    }
+    setLoadFailed(false);
+  }, [src, platform]);
+
+  const handleImageError = () => {
+    const apiUrl = API_URL;
+    if (!hasTriedProxy && cleanSrc && !cleanSrc.includes("/api/post-analysis/proxy-image")) {
+      setHasTriedProxy(true);
+      setImgSrc(
+        `${apiUrl}/api/post-analysis/proxy-image?url=${encodeURIComponent(cleanSrc)}`
+      );
+    } else {
+      setLoadFailed(true);
+    }
+  };
+
+  if (!imgSrc || loadFailed) {
+    return (
+      <div
+        className={`flex ${aspectRatio} w-full items-center justify-center bg-zinc-100 dark:bg-zinc-800/60 text-zinc-400 dark:text-zinc-600 ${className}`}
+      >
+        <div className="flex flex-col items-center gap-2 p-3 text-center">
+          <PlatformPngIcon platform={platform} size={32} />
+          <span className="text-[10px] font-medium text-zinc-500 capitalize">
+            {platform ? `${platform.toLowerCase()} post` : "Social post"}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`relative ${aspectRatio} w-full overflow-hidden`}>
+      <img
+        src={imgSrc}
+        alt={alt || "Post media"}
+        referrerPolicy="no-referrer"
+        onError={handleImageError}
+        className={`${aspectRatio} w-full object-cover transition-opacity duration-300 ${className}`}
+      />
+      {isVideo && (
+        <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-md bg-black/75 px-2 py-0.5 text-[10px] font-semibold text-white shadow-xs backdrop-blur-xs">
+          <Play className="h-2.5 w-2.5 fill-white" />
+          <span>Video</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function PostsAnalysisPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#fafafa] dark:bg-[#051F20] flex items-center justify-center text-sm text-zinc-500">
+          Loading intelligence...
+        </div>
+      }
+    >
+      <PostsAnalysisContent />
+    </Suspense>
+  );
+}

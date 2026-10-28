@@ -1,0 +1,218 @@
+"use client";
+
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+import { useTheme } from "../context/ThemeContext";
+import {
+  computeSentimentOverTime,
+  type AnalysisRecord,
+} from "@/src/lib/analyzedPostsStore";
+
+interface SentimentChartProps {
+  posts?: AnalysisRecord[];
+}
+
+export default function SentimentChart({ posts }: SentimentChartProps) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
+  const chartData = posts !== undefined
+    ? computeSentimentOverTime(posts)
+    : [
+        { day: "Mon", positive: 0, negative: 0, neutral: 0 },
+        { day: "Tue", positive: 0, negative: 0, neutral: 0 },
+        { day: "Wed", positive: 0, negative: 0, neutral: 0 },
+        { day: "Thu", positive: 0, negative: 0, neutral: 0 },
+        { day: "Fri", positive: 0, negative: 0, neutral: 0 },
+        { day: "Sat", positive: 0, negative: 0, neutral: 0 },
+        { day: "Sun", positive: 0, negative: 0, neutral: 0 },
+      ];
+
+  const isEmpty = !posts || posts.length === 0;
+
+  return (
+    <section
+      className="
+        card-hanging
+        rounded-2xl
+        border
+        border-zinc-200/80
+        dark:border-[#163832]
+        bg-white
+        dark:bg-[#0B2B26]/80
+        p-4
+        sm:p-6
+        shadow-xs
+      "
+    >
+      {/* ================================================== */}
+      {/* HEADER                                             */}
+      {/* ================================================== */}
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div>
+          <h3 className="font-display text-base sm:text-lg tracking-tight text-zinc-950 dark:text-white">
+            Sentiment Over Time
+          </h3>
+          <p className="mt-0.5 sm:mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            Audience sentiment trend across the last 7 days
+          </p>
+        </div>
+
+        {/* Legend */}
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs">
+          <span className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400 font-medium">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            Positive
+          </span>
+
+          <span className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400 font-medium">
+            <span className="h-2 w-2 rounded-full bg-rose-500" />
+            Negative
+          </span>
+
+          <span className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400 font-medium">
+            <span className="h-2 w-2 rounded-full bg-[#8EB69B]" />
+            Neutral
+          </span>
+        </div>
+      </div>
+
+      {/* ================================================== */}
+      {/* CHART                                              */}
+      {/* ================================================== */}
+      <div className="relative mt-5 sm:mt-6 h-[230px] sm:h-[300px] w-full">
+        {isEmpty && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-xl bg-white/70 dark:bg-[#0B2B26]/90 backdrop-blur-[2px] p-4 text-center">
+            <p className="text-xs sm:text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+              No sentiment data yet
+            </p>
+            <p className="mt-1 text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 max-w-xs">
+              Analyze public social posts to begin charting real audience sentiment trends over time.
+            </p>
+          </div>
+        )}
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={chartData}
+            margin={{
+              top: 5,
+              right: 5,
+              left: -15,
+              bottom: 0,
+            }}
+          >
+            <defs>
+              <linearGradient id="positiveGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity={0.25} />
+                <stop offset="100%" stopColor="#10b981" stopOpacity={0.0} />
+              </linearGradient>
+
+              <linearGradient id="negativeGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.2} />
+                <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.0} />
+              </linearGradient>
+
+              <linearGradient id="neutralGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#8EB69B" stopOpacity={0.25} />
+                <stop offset="100%" stopColor="#8EB69B" stopOpacity={0.0} />
+              </linearGradient>
+            </defs>
+
+            <CartesianGrid
+              stroke={isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(15, 23, 42, 0.08)"}
+              strokeDasharray="3 3"
+              vertical={false}
+            />
+
+            <XAxis
+              dataKey="day"
+              axisLine={false}
+              tickLine={false}
+              tick={{
+                fill: isDark ? "#94a3b8" : "#71717a",
+                fontSize: 11,
+              }}
+              dy={8}
+            />
+
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tick={{
+                fill: isDark ? "#94a3b8" : "#71717a",
+                fontSize: 11,
+              }}
+              domain={[0, 80]}
+              tickCount={5}
+            />
+
+            <Tooltip
+              cursor={{
+                stroke: isDark ? "rgba(142, 182, 155, 0.2)" : "rgba(15, 23, 42, 0.15)",
+                strokeWidth: 1,
+              }}
+              contentStyle={{
+                backgroundColor: isDark ? "#0B2B26" : "#ffffff",
+                border: isDark ? "1px solid #163832" : "1px solid #e4e4e7",
+                borderRadius: "12px",
+                color: isDark ? "#DAF1DE" : "#09090b",
+                fontSize: "12px",
+                boxShadow: "0 10px 30px rgba(0, 0, 0, 0.2)",
+              }}
+            />
+
+            <Area
+              type="monotone"
+              dataKey="positive"
+              stroke="#10b981"
+              strokeWidth={2.5}
+              fill="url(#positiveGradient)"
+              dot={false}
+              activeDot={{
+                r: 5,
+                strokeWidth: 0,
+                fill: "#10b981",
+              }}
+            />
+
+            <Area
+              type="monotone"
+              dataKey="negative"
+              stroke="#f43f5e"
+              strokeWidth={2.5}
+              fill="url(#negativeGradient)"
+              dot={false}
+              activeDot={{
+                r: 5,
+                strokeWidth: 0,
+                fill: "#f43f5e",
+              }}
+            />
+
+            <Area
+              type="monotone"
+              dataKey="neutral"
+              stroke="#8EB69B"
+              strokeWidth={2}
+              fill="url(#neutralGradient)"
+              dot={false}
+              activeDot={{
+                r: 4,
+                strokeWidth: 0,
+                fill: "#8EB69B",
+              }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
